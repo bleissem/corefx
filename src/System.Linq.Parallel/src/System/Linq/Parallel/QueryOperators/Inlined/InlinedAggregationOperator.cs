@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,7 +9,8 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 
 namespace System.Linq.Parallel
@@ -33,7 +35,7 @@ namespace System.Linq.Parallel
         internal InlinedAggregationOperator(IEnumerable<TSource> child)
             : base(child)
         {
-            Contract.Assert(child != null, "child data source cannot be null");
+            Debug.Assert(child != null, "child data source cannot be null");
         }
 
         //---------------------------------------------------------------------------------------
@@ -141,9 +143,10 @@ namespace System.Linq.Parallel
         protected abstract QueryOperatorEnumerator<TIntermediate, int> CreateEnumerator<TKey>(
             int index, int count, QueryOperatorEnumerator<TSource, TKey> source, object sharedData, CancellationToken cancellationToken);
 
+        [ExcludeFromCodeCoverage]
         internal override IEnumerable<TIntermediate> AsSequentialQuery(CancellationToken token)
         {
-            Contract.Assert(false, "This method should never be called. Associative aggregation can always be parallelized.");
+            Debug.Fail("This method should never be called. Associative aggregation can always be parallelized.");
             throw new NotSupportedException();
         }
 

@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,7 +9,8 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -115,7 +117,7 @@ namespace System.Linq.Parallel
             int queryId,
             IComparer<TKey> keyComparer)
         {
-            Contract.Assert(partitions != null);
+            Debug.Assert(partitions != null);
 
             TraceHelpers.TraceInfo("KeyOrderPreservingMergeHelper::.ctor(..): creating an order preserving merge helper");
 
@@ -132,8 +134,8 @@ namespace System.Linq.Parallel
             _bufferLocks = new object[partitionCount];
             if (keyComparer == Util.GetDefaultComparer<int>())
             {
-                Contract.Assert(typeof(TKey) == typeof(int));
-                _producerComparer = (IComparer<Producer<TKey>>)(object)new ProducerComparerInt();
+                Debug.Assert(typeof(TKey) == typeof(int));
+                _producerComparer = (IComparer<Producer<TKey>>)new ProducerComparerInt();
             }
             else
             {
@@ -165,9 +167,10 @@ namespace System.Linq.Parallel
         // Returns the results as an array.
         //
 
+        [ExcludeFromCodeCoverage]
         public TOutput[] GetResultsAsArray()
         {
-            Contract.Assert(false, "An ordered pipelining merge is not intended to be used this way.");
+            Debug.Fail("An ordered pipelining merge is not intended to be used this way.");
             throw new InvalidOperationException();
         }
 
@@ -365,7 +368,7 @@ namespace System.Linq.Parallel
                         // QueryEnd will wait on all tasks to complete and then propagate all exceptions.
                         _taskGroupState.QueryEnd(false);
 
-                        Contract.Assert(false, "QueryEnd() should have thrown an exception.");
+                        Debug.Fail("QueryEnd() should have thrown an exception.");
                     }
                     finally
                     {
@@ -402,13 +405,13 @@ namespace System.Linq.Parallel
                         // If the buffer is still empty, the producer is done
                         if (buffer.Count == 0)
                         {
-                            Contract.Assert(_mergeHelper._producerDone[producer]);
+                            Debug.Assert(_mergeHelper._producerDone[producer]);
                             element = default(Pair<TKey, TOutput>);
                             return false;
                         }
                     }
 
-                    Contract.Assert(buffer.Count > 0, "Producer's buffer should not be empty here.");
+                    Debug.Assert(buffer.Count > 0, "Producer's buffer should not be empty here.");
 
 
                     // If the producer is waiting, wake it up
@@ -432,13 +435,13 @@ namespace System.Linq.Parallel
                         // Give an empty buffer to the producer
                         _mergeHelper._buffers[producer] = new Queue<Pair<TKey, TOutput>>(INITIAL_BUFFER_SIZE);
                         // No return statement.
-                        // This is the only branch that contines below of the lock region.
+                        // This is the only branch that continues below of the lock region.
                     }
                 }
 
                 // Get an element out of the private buffer.
                 bool gotElement = TryGetPrivateElement(producer, ref element);
-                Contract.Assert(gotElement);
+                Debug.Assert(gotElement);
 
                 return true;
             }
@@ -457,7 +460,7 @@ namespace System.Linq.Parallel
                         return true;
                     }
 
-                    Contract.Assert(_privateBuffer[producer].Count == 0);
+                    Debug.Assert(_privateBuffer[producer].Count == 0);
                     _privateBuffer[producer] = null;
                 }
 
@@ -488,7 +491,7 @@ namespace System.Linq.Parallel
     /// <summary>
     /// A structure to represent a producer in the producer heap.
     /// </summary>
-    internal struct Producer<TKey>
+    internal readonly struct Producer<TKey>
     {
         internal readonly TKey MaxKey; // Order index of the next element from this producer
         internal readonly int ProducerIndex; // Index of the producer, [0..DOP)
@@ -515,7 +518,7 @@ namespace System.Linq.Parallel
     {
         public int Compare(Producer<int> x, Producer<int> y)
         {
-            Contract.Assert(x.MaxKey >= 0 && y.MaxKey >= 0); // Guarantees no overflow on next line
+            Debug.Assert(x.MaxKey >= 0 && y.MaxKey >= 0); // Guarantees no overflow on next line
 
             return y.MaxKey - x.MaxKey;
         }

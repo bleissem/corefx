@@ -1,45 +1,60 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
-using System;
-using System.IO;
 using Xunit;
 
-namespace System.IO.FileSystem.Tests
+namespace System.IO.Tests
 {
     public class FileStream_ctor_str_fm : FileSystemTest
     {
+        protected virtual FileStream CreateFileStream(string path, FileMode mode)
+        {
+            return new FileStream(path, mode);
+        }
+
         [Fact]
         public void NullPathThrows()
         {
-            ArgumentNullException ane = Assert.Throws<ArgumentNullException>(() => new FileStream(null, FileMode.Open));
-            Assert.Equal("path", ane.ParamName);
+            Assert.Throws<ArgumentNullException>(() => CreateFileStream(null, FileMode.Open));
         }
 
         [Fact]
         public void EmptyPathThrows()
         {
-            ArgumentException ae = Assert.Throws<ArgumentException>(() => new FileStream(String.Empty, FileMode.Open));
-            Assert.Equal("path", ae.ParamName);
+            Assert.Throws<ArgumentException>(() => CreateFileStream(String.Empty, FileMode.Open));
         }
 
         [Fact]
         public void DirectoryThrows()
         {
-            Assert.Throws<UnauthorizedAccessException>(() => new FileStream(".", FileMode.Open));
+            Assert.Throws<UnauthorizedAccessException>(() => CreateFileStream(".", FileMode.Open));
         }
 
         [Fact]
         public void InvalidModeThrows()
         {
-            ArgumentOutOfRangeException aoore = Assert.Throws<ArgumentOutOfRangeException>(() => new FileStream(GetTestFilePath(), ~FileMode.Open));
-            Assert.Equal("mode", aoore.ParamName);
+            AssertExtensions.Throws<ArgumentOutOfRangeException>("mode", () => CreateFileStream(GetTestFilePath(), ~FileMode.Open));
+        }
+
+        [Theory, MemberData(nameof(TrailingCharacters))]
+        public void MissingFile_ThrowsFileNotFound(char trailingChar)
+        {
+            string path = GetTestFilePath() + trailingChar;
+            Assert.Throws<FileNotFoundException>(() => CreateFileStream(path, FileMode.Open));
+        }
+
+        [Theory, MemberData(nameof(TrailingCharacters))]
+        public void MissingDirectory_ThrowsDirectoryNotFound(char trailingChar)
+        {
+            string path = Path.Combine(GetTestFilePath(), "file" + trailingChar);
+            Assert.Throws<DirectoryNotFoundException>(() => CreateFileStream(path, FileMode.Open));
         }
 
         [Fact]
         public void FileModeCreate()
         {
-            using (FileStream fs = new FileStream(GetTestFilePath(), FileMode.Create))
+            using (CreateFileStream(GetTestFilePath(), FileMode.Create))
             { }
         }
 
@@ -47,25 +62,25 @@ namespace System.IO.FileSystem.Tests
         public void FileModeCreateExisting()
         {
             string fileName = GetTestFilePath();
-            using (FileStream fs = new FileStream(fileName, FileMode.Create))
+            using (FileStream fs = CreateFileStream(fileName, FileMode.Create))
             {
                 fs.WriteByte(0);
             }
 
-            using (FileStream fs = new FileStream(fileName, FileMode.Create))
+            using (FileStream fs = CreateFileStream(fileName, FileMode.Create))
             {
                 // Ensure that the file was re-created
                 Assert.Equal(0L, fs.Length);
                 Assert.Equal(0L, fs.Position);
-                Assert.Equal(true, fs.CanRead);
-                Assert.Equal(true, fs.CanWrite);
+                Assert.True(fs.CanRead);
+                Assert.True(fs.CanWrite);
             }
         }
 
         [Fact]
         public void FileModeCreateNew()
         {
-            using (FileStream fs = new FileStream(GetTestFilePath(), FileMode.CreateNew))
+            using (CreateFileStream(GetTestFilePath(), FileMode.CreateNew))
             { }
         }
 
@@ -73,21 +88,21 @@ namespace System.IO.FileSystem.Tests
         public void FileModeCreateNewExistingThrows()
         {
             string fileName = GetTestFilePath();
-            using (FileStream fs = new FileStream(fileName, FileMode.CreateNew))
+            using (FileStream fs = CreateFileStream(fileName, FileMode.CreateNew))
             {
                 fs.WriteByte(0);
-                Assert.Equal(true, fs.CanRead);
-                Assert.Equal(true, fs.CanWrite);
+                Assert.True(fs.CanRead);
+                Assert.True(fs.CanWrite);
             }
 
-            Assert.Throws<IOException>(() => new FileStream(fileName, FileMode.CreateNew));
+            Assert.Throws<IOException>(() => CreateFileStream(fileName, FileMode.CreateNew));
         }
 
         [Fact]
         public void FileModeOpenThrows()
         {
             string fileName = GetTestFilePath();
-            FileNotFoundException fnfe = Assert.Throws<FileNotFoundException>(() => new FileStream(fileName, FileMode.Open));
+            FileNotFoundException fnfe = Assert.Throws<FileNotFoundException>(() => CreateFileStream(fileName, FileMode.Open));
             Assert.Equal(fileName, fnfe.FileName);
         }
 
@@ -95,25 +110,25 @@ namespace System.IO.FileSystem.Tests
         public void FileModeOpenExisting()
         {
             string fileName = GetTestFilePath();
-            using (FileStream fs = new FileStream(fileName, FileMode.Create))
+            using (FileStream fs = CreateFileStream(fileName, FileMode.Create))
             {
                 fs.WriteByte(0);
             }
 
-            using (FileStream fs = new FileStream(fileName, FileMode.Open))
+            using (FileStream fs = CreateFileStream(fileName, FileMode.Open))
             {
                 // Ensure that the file was re-opened
                 Assert.Equal(1L, fs.Length);
                 Assert.Equal(0L, fs.Position);
-                Assert.Equal(true, fs.CanRead);
-                Assert.Equal(true, fs.CanWrite);
+                Assert.True(fs.CanRead);
+                Assert.True(fs.CanWrite);
             }
         }
 
         [Fact]
         public void FileModeOpenOrCreate()
         {
-            using (FileStream fs = new FileStream(GetTestFilePath(), FileMode.OpenOrCreate))
+            using (CreateFileStream(GetTestFilePath(), FileMode.OpenOrCreate))
             {}
         }
 
@@ -121,18 +136,18 @@ namespace System.IO.FileSystem.Tests
         public void FileModeOpenOrCreateExisting()
         {
             string fileName = GetTestFilePath();
-            using (FileStream fs = new FileStream(fileName, FileMode.Create))
+            using (FileStream fs = CreateFileStream(fileName, FileMode.Create))
             {
                 fs.WriteByte(0);
             }
 
-            using (FileStream fs = new FileStream(fileName, FileMode.OpenOrCreate))
+            using (FileStream fs = CreateFileStream(fileName, FileMode.OpenOrCreate))
             {
                 // Ensure that the file was re-opened
                 Assert.Equal(1L, fs.Length);
                 Assert.Equal(0L, fs.Position);
-                Assert.Equal(true, fs.CanRead);
-                Assert.Equal(true, fs.CanWrite);
+                Assert.True(fs.CanRead);
+                Assert.True(fs.CanWrite);
             }
         }
 
@@ -140,7 +155,7 @@ namespace System.IO.FileSystem.Tests
         public void FileModeTruncateThrows()
         {
             string fileName = GetTestFilePath();
-            FileNotFoundException fnfe = Assert.Throws<FileNotFoundException>(() => new FileStream(fileName, FileMode.Truncate));
+            FileNotFoundException fnfe = Assert.Throws<FileNotFoundException>(() => CreateFileStream(fileName, FileMode.Truncate));
             Assert.Equal(fileName, fnfe.FileName);
         }
 
@@ -148,45 +163,48 @@ namespace System.IO.FileSystem.Tests
         public void FileModeTruncateExisting()
         {
             string fileName = GetTestFilePath();
-            using (FileStream fs = new FileStream(fileName, FileMode.Create))
+            using (FileStream fs = CreateFileStream(fileName, FileMode.Create))
             {
                 fs.WriteByte(0);
             }
 
-            using (FileStream fs = new FileStream(fileName, FileMode.Truncate))
+            using (FileStream fs = CreateFileStream(fileName, FileMode.Truncate))
             {
                 // Ensure that the file was re-opened and truncated
                 Assert.Equal(0L, fs.Length);
                 Assert.Equal(0L, fs.Position);
-                Assert.Equal(true, fs.CanRead);
+                Assert.True(fs.CanRead);
+                Assert.True(fs.CanWrite);
+            }
+        }
+
+        [Fact]
+        public virtual void FileModeAppend()
+        {
+            using (FileStream fs = CreateFileStream(GetTestFilePath(), FileMode.Append))
+            {
+                Assert.Equal(false, fs.CanRead);
                 Assert.Equal(true, fs.CanWrite);
             }
         }
 
         [Fact]
-        public void FileModeAppend()
-        {
-            using (FileStream fs = new FileStream(GetTestFilePath(), FileMode.Append))
-            { }
-        }
-
-        [Fact]
-        public void FileModeAppendExisting()
+        public virtual void FileModeAppendExisting()
         {
             string fileName = GetTestFilePath();
-            using (FileStream fs = new FileStream(fileName, FileMode.Create))
+            using (FileStream fs = CreateFileStream(fileName, FileMode.Create))
             {
                 fs.WriteByte(0);
             }
 
-            using (FileStream fs = new FileStream(fileName, FileMode.Append))
+            using (FileStream fs = CreateFileStream(fileName, FileMode.Append))
             {
                 // Ensure that the file was re-opened and position set to end
                 Assert.Equal(1L, fs.Length);
                 Assert.Equal(1L, fs.Position);
-                Assert.Equal(false, fs.CanRead);
-                Assert.Equal(true, fs.CanSeek);
-                Assert.Equal(true, fs.CanWrite);
+                Assert.False(fs.CanRead);
+                Assert.True(fs.CanSeek);
+                Assert.True(fs.CanWrite);
                 Assert.Throws<IOException>(() => fs.Seek(-1, SeekOrigin.Current));
                 Assert.Throws<NotSupportedException>(() => fs.ReadByte());
             }

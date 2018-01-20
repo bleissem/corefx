@@ -1,15 +1,13 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Collections;
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 namespace System.Collections.Specialized
 {
     /// <devdoc>
-    /// <para> 
+    /// <para>
     /// This interface adds indexing on the IDictionary keyed table concept.  Objects
-    /// added or inserted in an IOrderedDictionary must have both a key and an index, and 
+    /// added or inserted in an IOrderedDictionary must have both a key and an index, and
     /// can be retrieved by either.
     /// This interface is useful when preserving easy IDictionary access semantics via a key is
     /// desired while ordering is necessary.
@@ -38,4 +36,3 @@ namespace System.Collections.Specialized
         void RemoveAt(int index);
     }
 }
-

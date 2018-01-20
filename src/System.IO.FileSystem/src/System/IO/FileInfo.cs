@@ -1,97 +1,70 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
-using System;
-using System.Runtime.InteropServices;
+using System.Diagnostics;
 using System.Text;
-using System.Globalization;
-using System.Runtime.Versioning;
-using System.Diagnostics.Contracts;
 
 namespace System.IO
 {
     // Class for creating FileStream objects, and some basic file management
     // routines such as Delete, etc.
-    [ComVisible(true)]
-    public sealed class FileInfo : FileSystemInfo
+    public sealed partial class FileInfo : FileSystemInfo
     {
-        private String _name;
+        private string _name;
 
-        [System.Security.SecurityCritical]
         private FileInfo() { }
 
-        [System.Security.SecuritySafeCritical]
-        public FileInfo(String fileName)
+        public FileInfo(string fileName)
+            : this(fileName, isNormalized: false)
         {
-            if (fileName == null)
-                throw new ArgumentNullException("fileName");
-            Contract.EndContractBlock();
-
-            Init(fileName);
         }
 
-        [System.Security.SecurityCritical]
-        private void Init(String fileName)
+        internal FileInfo(string originalPath, string fullPath = null, string fileName = null, bool isNormalized = false)
         {
-            OriginalPath = fileName;
-            // Must fully qualify the path for the security check
-            String fullPath = PathHelpers.GetFullPathInternal(fileName);
+            // Want to throw the original argument name
+            OriginalPath = originalPath ?? throw new ArgumentNullException("fileName");
 
-            _name = Path.GetFileName(fileName);
-            FullPath = fullPath;
-            DisplayPath = GetDisplayPath(fileName);
+            fullPath = fullPath ?? originalPath;
+            Debug.Assert(!isNormalized || !PathInternal.IsPartiallyQualified(fullPath), "should be fully qualified if normalized");
+
+            FullPath = isNormalized ? fullPath ?? originalPath : Path.GetFullPath(fullPath);
+            _name = fileName ?? Path.GetFileName(originalPath);
+            DisplayPath = originalPath;
         }
 
-        private String GetDisplayPath(String originalPath)
-        {
-            return originalPath;
-        }
-
-        [System.Security.SecuritySafeCritical]
-        internal FileInfo(String fullPath, IFileSystemObject fileSystemObject) : base(fileSystemObject)
-        {
-            Contract.Assert(Path.IsPathRooted(fullPath), "fullPath must be fully qualified!");
-            _name = Path.GetFileName(fullPath);
-            OriginalPath = _name;
-            FullPath = fullPath;
-            DisplayPath = _name;
-        }
-
-        public override String Name
+        public override string Name
         {
             get { return _name; }
         }
 
-
         public long Length
         {
-            [System.Security.SecuritySafeCritical]  // auto-generated
             get
             {
-                if ((FileSystemObject.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
+                if ((Attributes & FileAttributes.Directory) == FileAttributes.Directory)
                 {
                     throw new FileNotFoundException(SR.Format(SR.IO_FileNotFound_FileName, DisplayPath), DisplayPath);
                 }
-                return FileSystemObject.Length;
+                return LengthCore;
             }
         }
 
         /* Returns the name of the directory that the file is in */
-        public String DirectoryName
+        public string DirectoryName
         {
-            [System.Security.SecuritySafeCritical]
             get
             {
                 return Path.GetDirectoryName(FullPath);
             }
         }
 
-        /* Creates an instance of the the parent directory */
+        /* Creates an instance of the parent directory */
         public DirectoryInfo Directory
         {
             get
             {
-                String dirName = DirectoryName;
+                string dirName = DirectoryName;
                 if (dirName == null)
                     return null;
                 return new DirectoryInfo(dirName);
@@ -113,45 +86,39 @@ namespace System.IO
             }
         }
 
-        [System.Security.SecuritySafeCritical]  // auto-generated
         public StreamReader OpenText()
         {
-            Stream stream = FileStream.InternalOpen(FullPath);
-            return new StreamReader(stream, Encoding.UTF8, true);
+            return new StreamReader(FullPath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
         }
 
         public StreamWriter CreateText()
         {
-            Stream stream = FileStream.InternalCreate(FullPath);
-            return new StreamWriter(stream);
+            return new StreamWriter(FullPath, append: false);
         }
 
         public StreamWriter AppendText()
         {
-            Stream stream = FileStream.InternalAppend(FullPath);
-            return new StreamWriter(stream);
+            return new StreamWriter(FullPath, append: true);
         }
 
 
         // Copies an existing file to a new file. An exception is raised if the
         // destination file already exists. Use the 
-        // Copy(String, String, boolean) method to allow 
+        // Copy(string, string, boolean) method to allow 
         // overwriting an existing file.
         //
         // The caller must have certain FileIOPermissions.  The caller must have
         // Read permission to sourceFileName 
         // and Write permissions to destFileName.
         // 
-        public FileInfo CopyTo(String destFileName)
+        public FileInfo CopyTo(string destFileName)
         {
             if (destFileName == null)
-                throw new ArgumentNullException("destFileName", SR.ArgumentNull_FileName);
+                throw new ArgumentNullException(nameof(destFileName), SR.ArgumentNull_FileName);
             if (destFileName.Length == 0)
-                throw new ArgumentException(SR.Argument_EmptyFileName, "destFileName");
-            Contract.EndContractBlock();
+                throw new ArgumentException(SR.Argument_EmptyFileName, nameof(destFileName));
 
-            destFileName = File.InternalCopy(FullPath, destFileName, false);
-            return new FileInfo(destFileName, null);
+            return new FileInfo(File.InternalCopy(FullPath, destFileName, false), isNormalized: true);
         }
 
 
@@ -164,16 +131,14 @@ namespace System.IO
         // Read permission to sourceFileName and Create
         // and Write permissions to destFileName.
         // 
-        public FileInfo CopyTo(String destFileName, bool overwrite)
+        public FileInfo CopyTo(string destFileName, bool overwrite)
         {
             if (destFileName == null)
-                throw new ArgumentNullException("destFileName", SR.ArgumentNull_FileName);
+                throw new ArgumentNullException(nameof(destFileName), SR.ArgumentNull_FileName);
             if (destFileName.Length == 0)
-                throw new ArgumentException(SR.Argument_EmptyFileName, "destFileName");
-            Contract.EndContractBlock();
+                throw new ArgumentException(SR.Argument_EmptyFileName, nameof(destFileName));
 
-            destFileName = File.InternalCopy(FullPath, destFileName, overwrite);
-            return new FileInfo(destFileName, null);
+            return new FileInfo(File.InternalCopy(FullPath, destFileName, overwrite), isNormalized: true);
         }
 
         public FileStream Create()
@@ -191,10 +156,9 @@ namespace System.IO
         // 
         // Your application must have Delete permission to the target file.
         // 
-        [System.Security.SecuritySafeCritical]
         public override void Delete()
         {
-            FileSystem.Current.DeleteFile(FullPath);
+            FileSystem.DeleteFile(FullPath);
         }
 
         // Tests if the given file exists. The result is true if the file
@@ -204,12 +168,11 @@ namespace System.IO
         // Your application must have Read permission for the target directory.
         public override bool Exists
         {
-            [System.Security.SecuritySafeCritical]  // auto-generated
             get
             {
                 try
                 {
-                    return FileSystemObject.Exists;
+                    return ExistsCore;
                 }
                 catch
                 {
@@ -218,13 +181,10 @@ namespace System.IO
             }
         }
 
-
-
-
         // User must explicitly specify opening a new file or appending to one.
         public FileStream Open(FileMode mode)
         {
-            return Open(mode, FileAccess.ReadWrite, FileShare.None);
+            return Open(mode, (mode == FileMode.Append ? FileAccess.Write : FileAccess.ReadWrite), FileShare.None);
         }
 
         public FileStream Open(FileMode mode, FileAccess access)
@@ -237,14 +197,11 @@ namespace System.IO
             return new FileStream(FullPath, mode, access, share);
         }
 
-
-        [System.Security.SecuritySafeCritical]  // auto-generated
         public FileStream OpenRead()
         {
             return new FileStream(FullPath, FileMode.Open, FileAccess.Read,
                                   FileShare.Read, 4096, false);
         }
-
 
         public FileStream OpenWrite()
         {
@@ -260,31 +217,63 @@ namespace System.IO
         // sourceFileName and Write 
         // permissions to destFileName.
         // 
-        [System.Security.SecuritySafeCritical]
-        public void MoveTo(String destFileName)
+        public void MoveTo(string destFileName)
         {
             if (destFileName == null)
-                throw new ArgumentNullException("destFileName");
+                throw new ArgumentNullException(nameof(destFileName));
             if (destFileName.Length == 0)
-                throw new ArgumentException(SR.Argument_EmptyFileName, "destFileName");
-            Contract.EndContractBlock();
+                throw new ArgumentException(SR.Argument_EmptyFileName, nameof(destFileName));
 
-            String fullDestFileName = PathHelpers.GetFullPathInternal(destFileName);
+            string fullDestFileName = Path.GetFullPath(destFileName);
 
-            FileSystem.Current.MoveFile(FullPath, fullDestFileName);
+            // These checks are in place to ensure Unix error throwing happens the same way
+            // as it does on Windows.These checks can be removed if a solution to #2460 is
+            // found that doesn't require validity checks before making an API call.
+            if (!new DirectoryInfo(Path.GetDirectoryName(FullName)).Exists)
+            {
+                throw new DirectoryNotFoundException(SR.Format(SR.IO_PathNotFound_Path, FullName));
+            }
+            if (!Exists)
+            {
+                throw new FileNotFoundException(SR.Format(SR.IO_FileNotFound_FileName, FullName), FullName);
+            }
+
+            FileSystem.MoveFile(FullPath, fullDestFileName);
 
             FullPath = fullDestFileName;
             OriginalPath = destFileName;
             _name = Path.GetFileName(fullDestFileName);
-            DisplayPath = GetDisplayPath(destFileName);
+            DisplayPath = destFileName;
             // Flush any cached information about the file.
             Invalidate();
         }
 
+        public FileInfo Replace(string destinationFileName, string destinationBackupFileName)
+        {
+            return Replace(destinationFileName, destinationBackupFileName, ignoreMetadataErrors: false);
+        }
+
+        public FileInfo Replace(string destinationFileName, string destinationBackupFileName, bool ignoreMetadataErrors)
+        {
+            File.Replace(FullPath, destinationFileName, destinationBackupFileName, ignoreMetadataErrors);
+            return new FileInfo(destinationFileName);
+        }
+
         // Returns the display path
-        public override String ToString()
+        public override string ToString()
         {
             return DisplayPath;
         }
+
+        public void Decrypt()
+        {
+            File.Decrypt(FullPath);
+        }
+
+        public void Encrypt()
+        {
+            File.Encrypt(FullPath);
+        }
+
     }
 }

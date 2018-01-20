@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Diagnostics;
 using System.IO;
@@ -17,7 +18,7 @@ namespace System.Reflection.PortableExecutable
     ///
     /// Only methods that are needed to read PE headers are implemented.
     /// </summary>
-    internal struct PEBinaryReader
+    internal readonly struct PEBinaryReader
     {
         private readonly long _startOffset;
         private readonly long _maxOffset;
@@ -28,7 +29,7 @@ namespace System.Reflection.PortableExecutable
             Debug.Assert(size >= 0 && size <= (stream.Length - stream.Position));
 
             _startOffset = stream.Position;
-            _maxOffset = _startOffset + (uint)size;
+            _maxOffset = _startOffset + size;
             _reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
         }
 
@@ -61,9 +62,9 @@ namespace System.Reflection.PortableExecutable
             return _reader.ReadInt16();
         }
 
-        public UInt16 ReadUInt16()
+        public ushort ReadUInt16()
         {
-            CheckBounds(sizeof(UInt16));
+            CheckBounds(sizeof(ushort));
             return _reader.ReadUInt16();
         }
 
@@ -85,40 +86,27 @@ namespace System.Reflection.PortableExecutable
             return _reader.ReadUInt64();
         }
 
-        public string ReadUTF8(int byteCount)
+        /// <summary>
+        /// Reads a fixed-length byte block as a null-padded UTF8-encoded string.
+        /// The padding is not included in the returned string.
+        /// 
+        /// Note that it is legal for UTF8 strings to contain NUL; if NUL occurs
+        /// between non-NUL codepoints, it is not considered to be padding and
+        /// is included in the result.
+        /// </summary>
+        public string ReadNullPaddedUTF8(int byteCount)
         {
             byte[] bytes = ReadBytes(byteCount);
-            return Encoding.UTF8.GetString(bytes, 0, byteCount);
-        }
-
-        /// <summary>
-        /// Resolve image size as either the given user-specified size or distance from current position to end-of-stream.
-        /// Also performs the relevant argument validation and publicly visible caller has same argument names.
-        /// </summary>
-        /// <exception cref="ArgumentException">size is null and distance from current position to end-of-stream can't fit in Int32.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Size is negative or extends past the end-of-stream from current position.</exception>
-        public static int GetAndValidateSize(Stream peStream, int? size)
-        {
-            long maxSize = peStream.Length - peStream.Position;
-
-            if (size.HasValue)
+            int nonPaddedLength = 0;
+            for (int i = bytes.Length; i > 0; --i)
             {
-                if (unchecked((uint)size.Value) > maxSize)
+                if (bytes[i - 1] != 0)
                 {
-                    throw new ArgumentOutOfRangeException("size");
+                    nonPaddedLength = i;
+                    break;
                 }
-
-                return size.Value;
             }
-            else
-            {
-                if (maxSize > int.MaxValue)
-                {
-                    throw new ArgumentException(MetadataResources.StreamTooLarge, "peStream");
-                }
-
-                return (int)maxSize;
-            }
+            return Encoding.UTF8.GetString(bytes, 0, nonPaddedLength);
         }
 
         private void CheckBounds(uint count)
@@ -129,7 +117,7 @@ namespace System.Reflection.PortableExecutable
             // Add cannot overflow because the worst case is (ulong)long.MaxValue + uint.MaxValue < ulong.MaxValue.
             if ((ulong)_reader.BaseStream.Position + count > (ulong)_maxOffset)
             {
-                ThrowImageTooSmall();
+                Throw.ImageTooSmall();
             }
         }
 
@@ -141,21 +129,8 @@ namespace System.Reflection.PortableExecutable
             // Negative count is handled by overflow to greater than maximum size = int.MaxValue.
             if ((ulong)startPosition + unchecked((uint)count) > (ulong)_maxOffset)
             {
-                ThrowImageTooSmallOrContainsInvalidOffsetOrCount();
+                Throw.ImageTooSmallOrContainsInvalidOffsetOrCount();
             }
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ThrowImageTooSmall()
-        {
-            throw new BadImageFormatException(MetadataResources.ImageTooSmall);
-        }
-
-        // TODO: move throw helpers together. 
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static void ThrowImageTooSmallOrContainsInvalidOffsetOrCount()
-        {
-            throw new BadImageFormatException(MetadataResources.ImageTooSmallOrContainsInvalidOffsetOrCount);
         }
     }
 }

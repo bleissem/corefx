@@ -1,23 +1,25 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections;
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 namespace System.Collections.Specialized
 {
     /// <devdoc>
-    ///  <para> 
+    ///  <para>
     ///    This is a simple implementation of IDictionary using a singly linked list. This
     ///    will be smaller and faster than a Hashtable if the number of elements is 10 or less.
     ///    This should not be used if performance is important for large numbers of elements.
     ///  </para>
     /// </devdoc>
+    [Serializable]
+    [System.Runtime.CompilerServices.TypeForwardedFrom("System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089")]
     public class ListDictionary : IDictionary
     {
-        private DictionaryNode _head;
-        private int _version;
-        private int _count;
-        private readonly IComparer _comparer;
+        private DictionaryNode head; // Do not rename (binary serialization)
+        private int version; // Do not rename (binary serialization)
+        private int count; // Do not rename (binary serialization)
+        private readonly IComparer comparer; // Do not rename (binary serialization)
+        [NonSerialized]
         private Object _syncRoot;
 
         public ListDictionary()
@@ -26,7 +28,7 @@ namespace System.Collections.Specialized
 
         public ListDictionary(IComparer comparer)
         {
-            _comparer = comparer;
+            this.comparer = comparer;
         }
 
         public object this[object key]
@@ -35,15 +37,15 @@ namespace System.Collections.Specialized
             {
                 if (key == null)
                 {
-                    throw new ArgumentNullException("key", SR.ArgumentNull_Key);
+                    throw new ArgumentNullException(nameof(key));
                 }
-                DictionaryNode node = _head;
-                if (_comparer == null)
+                DictionaryNode node = head;
+                if (comparer == null)
                 {
                     while (node != null)
                     {
                         object oldKey = node.key;
-                        if (oldKey != null && oldKey.Equals(key))
+                        if (oldKey.Equals(key))
                         {
                             return node.value;
                         }
@@ -55,7 +57,7 @@ namespace System.Collections.Specialized
                     while (node != null)
                     {
                         object oldKey = node.key;
-                        if (oldKey != null && _comparer.Compare(oldKey, key) == 0)
+                        if (comparer.Compare(oldKey, key) == 0)
                         {
                             return node.value;
                         }
@@ -68,15 +70,15 @@ namespace System.Collections.Specialized
             {
                 if (key == null)
                 {
-                    throw new ArgumentNullException("key", SR.ArgumentNull_Key);
+                    throw new ArgumentNullException(nameof(key));
                 }
-                _version++;
+                version++;
                 DictionaryNode last = null;
                 DictionaryNode node;
-                for (node = _head; node != null; node = node.next)
+                for (node = head; node != null; node = node.next)
                 {
                     object oldKey = node.key;
-                    if ((_comparer == null) ? oldKey.Equals(key) : _comparer.Compare(oldKey, key) == 0)
+                    if ((comparer == null) ? oldKey.Equals(key) : comparer.Compare(oldKey, key) == 0)
                     {
                         break;
                     }
@@ -98,9 +100,9 @@ namespace System.Collections.Specialized
                 }
                 else
                 {
-                    _head = newNode;
+                    head = newNode;
                 }
-                _count++;
+                count++;
             }
         }
 
@@ -108,7 +110,7 @@ namespace System.Collections.Specialized
         {
             get
             {
-                return _count;
+                return count;
             }
         }
 
@@ -168,17 +170,17 @@ namespace System.Collections.Specialized
         {
             if (key == null)
             {
-                throw new ArgumentNullException("key", SR.ArgumentNull_Key);
+                throw new ArgumentNullException(nameof(key));
             }
-            _version++;
+            version++;
             DictionaryNode last = null;
             DictionaryNode node;
-            for (node = _head; node != null; node = node.next)
+            for (node = head; node != null; node = node.next)
             {
                 object oldKey = node.key;
-                if ((_comparer == null) ? oldKey.Equals(key) : _comparer.Compare(oldKey, key) == 0)
+                if ((comparer == null) ? oldKey.Equals(key) : comparer.Compare(oldKey, key) == 0)
                 {
-                    throw new ArgumentException(SR.Argument_AddingDuplicate);
+                    throw new ArgumentException(SR.Format(SR.Argument_AddingDuplicate, key));
                 }
                 last = node;
             }
@@ -192,28 +194,28 @@ namespace System.Collections.Specialized
             }
             else
             {
-                _head = newNode;
+                head = newNode;
             }
-            _count++;
+            count++;
         }
 
         public void Clear()
         {
-            _count = 0;
-            _head = null;
-            _version++;
+            count = 0;
+            head = null;
+            version++;
         }
 
         public bool Contains(object key)
         {
             if (key == null)
             {
-                throw new ArgumentNullException("key", SR.ArgumentNull_Key);
+                throw new ArgumentNullException(nameof(key));
             }
-            for (DictionaryNode node = _head; node != null; node = node.next)
+            for (DictionaryNode node = head; node != null; node = node.next)
             {
                 object oldKey = node.key;
-                if ((_comparer == null) ? oldKey.Equals(key) : _comparer.Compare(oldKey, key) == 0)
+                if ((comparer == null) ? oldKey.Equals(key) : comparer.Compare(oldKey, key) == 0)
                 {
                     return true;
                 }
@@ -224,14 +226,14 @@ namespace System.Collections.Specialized
         public void CopyTo(Array array, int index)
         {
             if (array == null)
-                throw new ArgumentNullException("array");
+                throw new ArgumentNullException(nameof(array));
             if (index < 0)
-                throw new ArgumentOutOfRangeException("index", SR.ArgumentOutOfRange_NeedNonNegNum);
+                throw new ArgumentOutOfRangeException(nameof(index), index, SR.ArgumentOutOfRange_NeedNonNegNum);
 
-            if (array.Length - index < _count)
+            if (array.Length - index < count)
                 throw new ArgumentException(SR.Arg_InsufficientSpace);
 
-            for (DictionaryNode node = _head; node != null; node = node.next)
+            for (DictionaryNode node = head; node != null; node = node.next)
             {
                 array.SetValue(new DictionaryEntry(node.key, node.value), index);
                 index++;
@@ -252,15 +254,15 @@ namespace System.Collections.Specialized
         {
             if (key == null)
             {
-                throw new ArgumentNullException("key", SR.ArgumentNull_Key);
+                throw new ArgumentNullException(nameof(key));
             }
-            _version++;
+            version++;
             DictionaryNode last = null;
             DictionaryNode node;
-            for (node = _head; node != null; node = node.next)
+            for (node = head; node != null; node = node.next)
             {
                 object oldKey = node.key;
-                if ((_comparer == null) ? oldKey.Equals(key) : _comparer.Compare(oldKey, key) == 0)
+                if ((comparer == null) ? oldKey.Equals(key) : comparer.Compare(oldKey, key) == 0)
                 {
                     break;
                 }
@@ -270,15 +272,15 @@ namespace System.Collections.Specialized
             {
                 return;
             }
-            if (node == _head)
+            if (node == head)
             {
-                _head = node.next;
+                head = node.next;
             }
             else
             {
                 last.next = node.next;
             }
-            _count--;
+            count--;
         }
 
         private class NodeEnumerator : IDictionaryEnumerator
@@ -292,7 +294,7 @@ namespace System.Collections.Specialized
             public NodeEnumerator(ListDictionary list)
             {
                 _list = list;
-                _version = list._version;
+                _version = list.version;
                 _start = true;
                 _current = null;
             }
@@ -343,13 +345,13 @@ namespace System.Collections.Specialized
 
             public bool MoveNext()
             {
-                if (_version != _list._version)
+                if (_version != _list.version)
                 {
                     throw new InvalidOperationException(SR.InvalidOperation_EnumFailedVersion);
                 }
                 if (_start)
                 {
-                    _current = _list._head;
+                    _current = _list.head;
                     _start = false;
                 }
                 else if (_current != null)
@@ -361,7 +363,7 @@ namespace System.Collections.Specialized
 
             public void Reset()
             {
-                if (_version != _list._version)
+                if (_version != _list.version)
                 {
                     throw new InvalidOperationException(SR.InvalidOperation_EnumFailedVersion);
                 }
@@ -369,8 +371,7 @@ namespace System.Collections.Specialized
                 _current = null;
             }
         }
-
-
+        
         private class NodeKeyValueCollection : ICollection
         {
             private ListDictionary _list;
@@ -385,10 +386,11 @@ namespace System.Collections.Specialized
             void ICollection.CopyTo(Array array, int index)
             {
                 if (array == null)
-                    throw new ArgumentNullException("array");
+                    throw new ArgumentNullException(nameof(array));
                 if (index < 0)
-                    throw new ArgumentOutOfRangeException("index", SR.ArgumentOutOfRange_NeedNonNegNum);
-                for (DictionaryNode node = _list._head; node != null; node = node.next)
+                    throw new ArgumentOutOfRangeException(nameof(index), index, SR.ArgumentOutOfRange_NeedNonNegNum);
+
+                for (DictionaryNode node = _list.head; node != null; node = node.next)
                 {
                     array.SetValue(_isKeys ? node.key : node.value, index);
                     index++;
@@ -400,7 +402,7 @@ namespace System.Collections.Specialized
                 get
                 {
                     int count = 0;
-                    for (DictionaryNode node = _list._head; node != null; node = node.next)
+                    for (DictionaryNode node = _list.head; node != null; node = node.next)
                     {
                         count++;
                     }
@@ -442,7 +444,7 @@ namespace System.Collections.Specialized
                 {
                     _list = list;
                     _isKeys = isKeys;
-                    _version = list._version;
+                    _version = list.version;
                     _start = true;
                     _current = null;
                 }
@@ -461,13 +463,13 @@ namespace System.Collections.Specialized
 
                 public bool MoveNext()
                 {
-                    if (_version != _list._version)
+                    if (_version != _list.version)
                     {
                         throw new InvalidOperationException(SR.InvalidOperation_EnumFailedVersion);
                     }
                     if (_start)
                     {
-                        _current = _list._head;
+                        _current = _list.head;
                         _start = false;
                     }
                     else if (_current != null)
@@ -479,7 +481,7 @@ namespace System.Collections.Specialized
 
                 public void Reset()
                 {
-                    if (_version != _list._version)
+                    if (_version != _list.version)
                     {
                         throw new InvalidOperationException(SR.InvalidOperation_EnumFailedVersion);
                     }
@@ -489,11 +491,13 @@ namespace System.Collections.Specialized
             }
         }
 
-        private class DictionaryNode
+        [Serializable]
+        [System.Runtime.CompilerServices.TypeForwardedFrom("System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089")]
+        public class DictionaryNode
         {
-            public object key;
-            public object value;
-            public DictionaryNode next;
+            public object key; // Do not rename (binary serialization)
+            public object value; // Do not rename (binary serialization)
+            public DictionaryNode next; // Do not rename (binary serialization)
         }
     }
 }

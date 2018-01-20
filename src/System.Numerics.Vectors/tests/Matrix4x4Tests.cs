@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -717,7 +718,7 @@ namespace System.Numerics.Tests
                 {
                     Vector3 rp = Vector3.Transform(point, m);
 
-                    // Maniually compute refelction point and compare results.
+                    // Manually compute reflection point and compare results.
                     Vector3 v = point - pp;
                     float d = Vector3.Dot(v, plane.Normal);
                     Vector3 vp = point - 2.0f * d * plane.Normal;
@@ -1580,10 +1581,11 @@ namespace System.Numerics.Tests
         public void Matrix4x4GetHashCodeTest()
         {
             Matrix4x4 target = GenerateMatrixNumberFrom1To16();
-            int expected = target.M11.GetHashCode() + target.M12.GetHashCode() + target.M13.GetHashCode() + target.M14.GetHashCode() +
-                            target.M21.GetHashCode() + target.M22.GetHashCode() + target.M23.GetHashCode() + target.M24.GetHashCode() +
-                            target.M31.GetHashCode() + target.M32.GetHashCode() + target.M33.GetHashCode() + target.M34.GetHashCode() +
-                            target.M41.GetHashCode() + target.M42.GetHashCode() + target.M43.GetHashCode() + target.M44.GetHashCode();
+            int expected = unchecked(
+                target.M11.GetHashCode() + target.M12.GetHashCode() + target.M13.GetHashCode() + target.M14.GetHashCode() +
+                target.M21.GetHashCode() + target.M22.GetHashCode() + target.M23.GetHashCode() + target.M24.GetHashCode() +
+                target.M31.GetHashCode() + target.M32.GetHashCode() + target.M33.GetHashCode() + target.M34.GetHashCode() +
+                target.M41.GetHashCode() + target.M42.GetHashCode() + target.M43.GetHashCode() + target.M44.GetHashCode());
             int actual;
 
             actual = target.GetHashCode();
@@ -1851,7 +1853,7 @@ namespace System.Numerics.Tests
         }
 
         // A test for CreateBillboard (Vector3f, Vector3f, Vector3f, Vector3f?)
-        // Object and camera positions are too close and doesn't pass cameraFowardVector.
+        // Object and camera positions are too close and doesn't pass cameraForwardVector.
         [Fact]
         public void Matrix4x4CreateBillboardTooCloseTest1()
         {
@@ -1866,7 +1868,7 @@ namespace System.Numerics.Tests
         }
 
         // A test for CreateBillboard (Vector3f, Vector3f, Vector3f, Vector3f?)
-        // Object and camera positions are too close and passed cameraFowardVector.
+        // Object and camera positions are too close and passed cameraForwardVector.
         [Fact]
         public void Matrix4x4CreateBillboardTooCloseTest2()
         {
@@ -1874,7 +1876,7 @@ namespace System.Numerics.Tests
             Vector3 cameraPosition = objectPosition;
             Vector3 cameraUpVector = new Vector3(0, 1, 0);
 
-            // Passes Vector3f.Rgiht as camera face direction. Result must be same as -90 degrees rotate along y-axis.
+            // Passes Vector3f.Right as camera face direction. Result must be same as -90 degrees rotate along y-axis.
             Matrix4x4 expected = Matrix4x4.CreateRotationY(MathHelper.ToRadians(-90.0f)) * Matrix4x4.CreateTranslation(objectPosition);
             Matrix4x4 actual = Matrix4x4.CreateBillboard(objectPosition, cameraPosition, cameraUpVector, new Vector3(1, 0, 0));
             Assert.True(MathHelper.Equal(expected, actual), "Matrix4x4.CreateBillboard did not return the expected value.");
@@ -2038,7 +2040,7 @@ namespace System.Numerics.Tests
             Vector3 cameraPosition = objectPosition;
             Vector3 cameraUpVector = new Vector3(0, 1, 0);
 
-            // Passes Vector3f.Rgiht as camera face direction. Result must be same as -90 degrees rotate along y-axis.
+            // Passes Vector3f.Right as camera face direction. Result must be same as -90 degrees rotate along y-axis.
             Matrix4x4 expected = Matrix4x4.CreateRotationY(MathHelper.ToRadians(-90.0f)) * Matrix4x4.CreateTranslation(objectPosition);
             Matrix4x4 actual = Matrix4x4.CreateConstrainedBillboard(objectPosition, cameraPosition, cameraUpVector, new Vector3(1, 0, 0), new Vector3(0, 0, -1));
             Assert.True(MathHelper.Equal(expected, actual), "Matrix4x4.CreateConstrainedBillboard did not return the expected value.");
@@ -2256,7 +2258,7 @@ namespace System.Numerics.Tests
             Matrix4x4 a = GenerateTestMatrix();
             Matrix4x4 b = a;
 
-            // Transfomed vector that has same semantics of property must be same.
+            // Transformed vector that has same semantics of property must be same.
             Vector3 val = new Vector3(a.M41, a.M42, a.M43);
             Assert.Equal(val, a.Translation);
 
@@ -2487,27 +2489,62 @@ namespace System.Numerics.Tests
         [Fact]
         public unsafe void Matrix4x4FieldOffsetTest()
         {
-            Matrix4x4* ptr = (Matrix4x4*)0;
+            Matrix4x4 mat = new Matrix4x4();
 
-            Assert.Equal(new IntPtr(0), new IntPtr(&ptr->M11));
-            Assert.Equal(new IntPtr(4), new IntPtr(&ptr->M12));
-            Assert.Equal(new IntPtr(8), new IntPtr(&ptr->M13));
-            Assert.Equal(new IntPtr(12), new IntPtr(&ptr->M14));
+            float* basePtr = &mat.M11; // Take address of first element
+            Matrix4x4* matPtr = &mat; // Take address of whole matrix
 
-            Assert.Equal(new IntPtr(16), new IntPtr(&ptr->M21));
-            Assert.Equal(new IntPtr(20), new IntPtr(&ptr->M22));
-            Assert.Equal(new IntPtr(24), new IntPtr(&ptr->M23));
-            Assert.Equal(new IntPtr(28), new IntPtr(&ptr->M24));
+            Assert.Equal(new IntPtr(basePtr), new IntPtr(matPtr));
 
-            Assert.Equal(new IntPtr(32), new IntPtr(&ptr->M31));
-            Assert.Equal(new IntPtr(36), new IntPtr(&ptr->M32));
-            Assert.Equal(new IntPtr(40), new IntPtr(&ptr->M33));
-            Assert.Equal(new IntPtr(44), new IntPtr(&ptr->M34));
+            Assert.Equal(new IntPtr(basePtr + 0), new IntPtr(&mat.M11));
+            Assert.Equal(new IntPtr(basePtr + 1), new IntPtr(&mat.M12));
+            Assert.Equal(new IntPtr(basePtr + 2), new IntPtr(&mat.M13));
+            Assert.Equal(new IntPtr(basePtr + 3), new IntPtr(&mat.M14));
 
-            Assert.Equal(new IntPtr(48), new IntPtr(&ptr->M41));
-            Assert.Equal(new IntPtr(52), new IntPtr(&ptr->M42));
-            Assert.Equal(new IntPtr(56), new IntPtr(&ptr->M43));
-            Assert.Equal(new IntPtr(60), new IntPtr(&ptr->M44));
+            Assert.Equal(new IntPtr(basePtr + 4), new IntPtr(&mat.M21));
+            Assert.Equal(new IntPtr(basePtr + 5), new IntPtr(&mat.M22));
+            Assert.Equal(new IntPtr(basePtr + 6), new IntPtr(&mat.M23));
+            Assert.Equal(new IntPtr(basePtr + 7), new IntPtr(&mat.M24));
+
+            Assert.Equal(new IntPtr(basePtr + 8), new IntPtr(&mat.M31));
+            Assert.Equal(new IntPtr(basePtr + 9), new IntPtr(&mat.M32));
+            Assert.Equal(new IntPtr(basePtr + 10), new IntPtr(&mat.M33));
+            Assert.Equal(new IntPtr(basePtr + 11), new IntPtr(&mat.M34));
+
+            Assert.Equal(new IntPtr(basePtr + 12), new IntPtr(&mat.M41));
+            Assert.Equal(new IntPtr(basePtr + 13), new IntPtr(&mat.M42));
+            Assert.Equal(new IntPtr(basePtr + 14), new IntPtr(&mat.M43));
+            Assert.Equal(new IntPtr(basePtr + 15), new IntPtr(&mat.M44));
+        }
+
+        [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework)]
+        public void PerspectiveFarPlaneAtInfinityTest()
+        {
+            var nearPlaneDistance = 0.125f;
+            var m = Matrix4x4.CreatePerspective(1.0f, 1.0f, nearPlaneDistance, float.PositiveInfinity);
+            Assert.Equal(-1.0f, m.M33);
+            Assert.Equal(-nearPlaneDistance, m.M43);
+        }
+
+        [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework)]
+        public void PerspectiveFieldOfViewFarPlaneAtInfinityTest()
+        {
+            var nearPlaneDistance = 0.125f;
+            var m = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(60.0f), 1.5f, nearPlaneDistance, float.PositiveInfinity);
+            Assert.Equal(-1.0f, m.M33);
+            Assert.Equal(-nearPlaneDistance, m.M43);
+        }
+
+        [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework)]
+        public void PerspectiveOffCenterFarPlaneAtInfinityTest()
+        {
+            var nearPlaneDistance = 0.125f;
+            var m = Matrix4x4.CreatePerspectiveOffCenter(0.0f, 0.0f, 1.0f, 1.0f, nearPlaneDistance, float.PositiveInfinity);
+            Assert.Equal(-1.0f, m.M33);
+            Assert.Equal(-nearPlaneDistance, m.M43);
         }
     }
 }

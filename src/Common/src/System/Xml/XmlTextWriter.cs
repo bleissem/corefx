@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
 using System.IO;
@@ -458,7 +459,7 @@ namespace System.Xml
                     if (ns == null)
                     {
                         // use defined prefix
-                        if (prefix != null && prefix.Length != 0 && (LookupNamespace(prefix) == -1))
+                        if (!string.IsNullOrEmpty(prefix) && (LookupNamespace(prefix) == -1))
                         {
                             throw new ArgumentException(SR.Xml_UndefPrefix);
                         }
@@ -492,7 +493,7 @@ namespace System.Xml
                         }
                     }
                     stack[top].prefix = null;
-                    if (prefix != null && prefix.Length != 0)
+                    if (!string.IsNullOrEmpty(prefix))
                     {
                         stack[top].prefix = prefix;
                         textWriter.Write(prefix);
@@ -501,7 +502,7 @@ namespace System.Xml
                 }
                 else
                 {
-                    if ((ns != null && ns.Length != 0) || (prefix != null && prefix.Length != 0))
+                    if (!string.IsNullOrEmpty(ns) || !string.IsNullOrEmpty(prefix))
                     {
                         throw new ArgumentException(SR.Xml_NoNamespaces);
                     }
@@ -565,7 +566,7 @@ namespace System.Xml
                         {
                             throw new ArgumentException(SR.Xml_XmlnsBelongsToReservedNs);
                         }
-                        if (localName == null || localName.Length == 0)
+                        if (string.IsNullOrEmpty(localName))
                         {
                             localName = prefix;
                             prefix = null;
@@ -625,7 +626,7 @@ namespace System.Xml
                             }
                         }
                     }
-                    if (prefix != null && prefix.Length != 0)
+                    if (!string.IsNullOrEmpty(prefix))
                     {
                         textWriter.Write(prefix);
                         textWriter.Write(':');
@@ -633,7 +634,7 @@ namespace System.Xml
                 }
                 else
                 {
-                    if ((ns != null && ns.Length != 0) || (prefix != null && prefix.Length != 0))
+                    if (!string.IsNullOrEmpty(ns) || !string.IsNullOrEmpty(prefix))
                     {
                         throw new ArgumentException(SR.Xml_NoNamespaces);
                     }
@@ -952,7 +953,7 @@ namespace System.Xml
                     case State.Closed:
                         return WriteState.Closed;
                     default:
-                        Debug.Assert(false);
+                        Debug.Fail("Unmatched state in switch");
                         return WriteState.Error;
                 }
             }
@@ -1009,7 +1010,7 @@ namespace System.Xml
                 AutoComplete(Token.Content);
                 if (this.namespaces)
                 {
-                    if (ns != null && ns.Length != 0 && ns != stack[top].defaultNs)
+                    if (!string.IsNullOrEmpty(ns) && ns != stack[top].defaultNs)
                     {
                         string prefix = FindPrefix(ns);
                         if (prefix == null)
@@ -1028,7 +1029,7 @@ namespace System.Xml
                         }
                     }
                 }
-                else if (ns != null && ns.Length != 0)
+                else if (!string.IsNullOrEmpty(ns))
                 {
                     throw new ArgumentException(SR.Xml_NoNamespaces);
                 }
@@ -1044,7 +1045,7 @@ namespace System.Xml
         // Returns the closest prefix defined in the current namespace scope for the specified namespace URI.
         public override string LookupPrefix(string ns)
         {
-            if (ns == null || ns.Length == 0)
+            if (string.IsNullOrEmpty(ns))
             {
                 throw new ArgumentException(SR.Xml_EmptyName);
             }
@@ -1094,7 +1095,7 @@ namespace System.Xml
             {
                 AutoComplete(Token.Content);
 
-                if (name == null || name.Length == 0)
+                if (string.IsNullOrEmpty(name))
                 {
                     throw new ArgumentException(SR.Xml_EmptyName);
                 }
@@ -1419,7 +1420,7 @@ namespace System.Xml
                         stack[top].defaultNs = ns;
                         break;
                     default:
-                        Debug.Assert(false, "Should have never come here");
+                        Debug.Fail("Should have never come here");
                         return;
                 }
                 stack[top].defaultNsState = (declared ? NamespaceState.DeclaredAndWrittenOut : NamespaceState.DeclaredButNotWrittenOut);
@@ -1461,7 +1462,7 @@ namespace System.Xml
             if (nsIndex == nsStack.Length)
             {
                 Namespace[] newStack = new Namespace[nsIndex * 2];
-                Array.Copy(nsStack, newStack, nsIndex);
+                Array.Copy(nsStack, 0, newStack, 0, nsIndex);
                 nsStack = newStack;
             }
             nsStack[nsIndex].Set(prefix, ns, declared);
@@ -1611,7 +1612,7 @@ namespace System.Xml
         // all valid name characters at that position. This can't be changed because of backwards compatibility.
         private unsafe void ValidateName(string name, bool isNCName)
         {
-            if (name == null || name.Length == 0)
+            if (string.IsNullOrEmpty(name))
             {
                 throw new ArgumentException(SR.Xml_EmptyName);
             }
@@ -1721,7 +1722,7 @@ namespace System.Xml
             if (top == stack.Length - 1)
             {
                 TagInfo[] na = new TagInfo[stack.Length + 10];
-                if (top > 0) Array.Copy(stack, na, top + 1);
+                if (top > 0) Array.Copy(stack, 0, na, 0, top + 1);
                 stack = na;
             }
 

@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,7 +9,8 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 
 namespace System.Linq.Parallel
@@ -36,8 +38,8 @@ namespace System.Linq.Parallel
         internal ElementAtQueryOperator(IEnumerable<TSource> child, int index)
             : base(child)
         {
-            Contract.Assert(child != null, "child data source cannot be null");
-            Contract.Assert(index >= 0, "index can't be less than 0");
+            Debug.Assert(child != null, "child data source cannot be null");
+            Debug.Assert(index >= 0, "index can't be less than 0");
             _index = index;
 
             OrdinalIndexState childIndexState = Child.OrdinalIndexState;
@@ -71,14 +73,14 @@ namespace System.Linq.Parallel
             if (_prematureMerge)
             {
                 intKeyStream = ExecuteAndCollectResults(inputStream, partitionCount, Child.OutputOrdered, preferStriping, settings).GetPartitionedStream();
-                Contract.Assert(intKeyStream.OrdinalIndexState == OrdinalIndexState.Indexible);
+                Debug.Assert(intKeyStream.OrdinalIndexState == OrdinalIndexState.Indexable);
             }
             else
             {
                 intKeyStream = (PartitionedStream<TSource, int>)(object)inputStream;
             }
 
-            // Create a shared cancelation variable and then return a possibly wrapped new enumerator.
+            // Create a shared cancellation variable and then return a possibly wrapped new enumerator.
             Shared<bool> resultFoundFlag = new Shared<bool>(false);
 
             PartitionedStream<TSource, int> outputStream = new PartitionedStream<TSource, int>(
@@ -96,9 +98,10 @@ namespace System.Linq.Parallel
         // Returns an enumerable that represents the query executing sequentially.
         //
 
+        [ExcludeFromCodeCoverage]
         internal override IEnumerable<TSource> AsSequentialQuery(CancellationToken token)
         {
-            Contract.Assert(false, "This method should never be called as fallback to sequential is handled in Aggregate().");
+            Debug.Fail("This method should never be called as fallback to sequential is handled in Aggregate().");
             throw new NotSupportedException();
         }
 
@@ -147,7 +150,7 @@ namespace System.Linq.Parallel
                 if (e.MoveNext())
                 {
                     TSource current = e.Current;
-                    Contract.Assert(!e.MoveNext(), "expected enumerator to be empty");
+                    Debug.Assert(!e.MoveNext(), "expected enumerator to be empty");
                     result = current;
                     return true;
                 }
@@ -177,9 +180,9 @@ namespace System.Linq.Parallel
                                                       int index, Shared<bool> resultFoundFlag,
                 CancellationToken cancellationToken)
             {
-                Contract.Assert(source != null);
-                Contract.Assert(index >= 0);
-                Contract.Assert(resultFoundFlag != null);
+                Debug.Assert(source != null);
+                Debug.Assert(index >= 0);
+                Debug.Assert(resultFoundFlag != null);
 
                 _source = source;
                 _index = index;
@@ -220,7 +223,7 @@ namespace System.Linq.Parallel
 
             protected override void Dispose(bool disposing)
             {
-                Contract.Assert(_source != null);
+                Debug.Assert(_source != null);
                 _source.Dispose();
             }
         }

@@ -1,13 +1,15 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.Contracts;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using Xunit;
 
-namespace System.Collections.Immutable.Test
+namespace System.Collections.Immutable.Tests
 {
     public class ImmutableSortedSetTest : ImmutableSetTest
     {
@@ -32,7 +34,7 @@ namespace System.Collections.Immutable.Test
             var expected = new SortedSet<int>();
             var actual = ImmutableSortedSet<int>.Empty;
 
-            int seed = (int)DateTime.Now.Ticks;
+            int seed = unchecked((int)DateTime.Now.Ticks);
             Debug.WriteLine("Using random seed {0}", seed);
             var random = new Random(seed);
 
@@ -77,6 +79,7 @@ namespace System.Collections.Immutable.Test
         }
 
         [Fact]
+        [ActiveIssue("Sporadic failure, needs a port of https://github.com/dotnet/coreclr/pull/4340", TargetFrameworkMonikers.NetFramework)]
         public void EmptyTest()
         {
             this.EmptyTestHelper(Empty<int>(), 5, null);
@@ -121,11 +124,49 @@ namespace System.Collections.Immutable.Test
         }
 
         [Fact]
-        public void ToImmutableSortedSetTest()
+        public void ToImmutableSortedSetFromArrayTest()
         {
             var set = new[] { 1, 2, 2 }.ToImmutableSortedSet();
             Assert.Same(Comparer<int>.Default, set.KeyComparer);
             Assert.Equal(2, set.Count);
+        }
+
+        [Theory]
+        [InlineData(new int[] { }, new int[] { })]
+        [InlineData(new int[] { 1 }, new int[] { 1 })]
+        [InlineData(new int[] { 1, 1 }, new int[] { 1 })]
+        [InlineData(new int[] { 1, 1, 1 }, new int[] { 1 })]
+        [InlineData(new int[] { 1, 2, 3 }, new int[] { 1, 2, 3 })]
+        [InlineData(new int[] { 3, 2, 1 }, new int[] { 1, 2, 3 })]
+        [InlineData(new int[] { 1, 1, 3 }, new int[] { 1, 3 })]
+        [InlineData(new int[] { 1, 2, 2 }, new int[] { 1, 2 })]
+        [InlineData(new int[] { 1, 2, 2, 3, 3, 3 }, new int[] { 1, 2, 3 })]
+        [InlineData(new int[] { 1, 2, 3, 1, 2, 3 }, new int[] { 1, 2, 3 })]
+        [InlineData(new int[] { 1, 1, 2, 2, 2, 3, 3, 3, 3 }, new int[] { 1, 2, 3 })]
+        public void ToImmutableSortedSetFromEnumerableTest(int[] input, int[] expectedOutput)
+        {
+            IEnumerable<int> enumerableInput = input.Select(i => i); // prevent querying for indexable interfaces
+            var set = enumerableInput.ToImmutableSortedSet();
+            Assert.Equal((IEnumerable<int>)expectedOutput, set.ToArray());
+        }
+
+        [Theory]
+        [InlineData(new int[] { }, new int[] { 1 })]
+        [InlineData(new int[] { 1 }, new int[] { 1 })]
+        [InlineData(new int[] { 1, 1 }, new int[] { 1 })]
+        [InlineData(new int[] { 1, 1, 1 }, new int[] { 1 })]
+        [InlineData(new int[] { 1, 2, 3 }, new int[] { 1, 2, 3 })]
+        [InlineData(new int[] { 3, 2, 1 }, new int[] { 1, 2, 3 })]
+        [InlineData(new int[] { 1, 1, 3 }, new int[] { 1, 3 })]
+        [InlineData(new int[] { 1, 2, 2 }, new int[] { 1, 2 })]
+        [InlineData(new int[] { 1, 2, 2, 3, 3, 3 }, new int[] { 1, 2, 3 })]
+        [InlineData(new int[] { 1, 2, 3, 1, 2, 3 }, new int[] { 1, 2, 3 })]
+        [InlineData(new int[] { 1, 1, 2, 2, 2, 3, 3, 3, 3 }, new int[] { 1, 2, 3 })]
+        public void UnionWithEnumerableTest(int[] input, int[] expectedOutput)
+        {
+            IEnumerable<int> enumerableInput = input.Select(i => i); // prevent querying for indexable interfaces
+            var set = ImmutableSortedSet.Create(1).Union(enumerableInput);
+            Assert.Equal((IEnumerable<int>)expectedOutput, set.ToArray());
         }
 
         [Fact]
@@ -147,6 +188,11 @@ namespace System.Collections.Immutable.Test
             Assert.Equal(~5, set.IndexOf(55));
             Assert.Equal(~9, set.IndexOf(95));
             Assert.Equal(~10, set.IndexOf(105));
+
+            var nullableSet = ImmutableSortedSet<int?>.Empty;
+            Assert.Equal(~0, nullableSet.IndexOf(null));
+            nullableSet = nullableSet.Add(null).Add(0);
+            Assert.Equal(0, nullableSet.IndexOf(null));
         }
 
         [Fact]
@@ -161,8 +207,8 @@ namespace System.Collections.Immutable.Test
                 AssertAreSame(item, set[i++]);
             }
 
-            Assert.Throws<ArgumentOutOfRangeException>(() => set[-1]);
-            Assert.Throws<ArgumentOutOfRangeException>(() => set[set.Count]);
+            AssertExtensions.Throws<ArgumentOutOfRangeException>("index", () => set[-1]);
+            AssertExtensions.Throws<ArgumentOutOfRangeException>("index", () => set[set.Count]);
         }
 
         [Fact]
@@ -267,6 +313,12 @@ namespace System.Collections.Immutable.Test
             set = ImmutableSortedSet.CreateRange(comparer, (IEnumerable<string>)new[] { "a", "b" });
             Assert.Equal(2, set.Count);
             Assert.Same(comparer, set.KeyComparer);
+
+            set = ImmutableSortedSet.Create(default(string));
+            Assert.Equal(1, set.Count);
+
+            set = ImmutableSortedSet.CreateRange(new[] { null, "a", null, "b" });
+            Assert.Equal(3, set.Count);
         }
 
         [Fact]
@@ -319,6 +371,66 @@ namespace System.Collections.Immutable.Test
             enumerator.Dispose();
         }
 
+        [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.UapAot, "Cannot do DebuggerAttribute testing on UapAot: requires internal Reflection on framework types.")]
+        public void DebuggerAttributesValid()
+        {
+            DebuggerAttributes.ValidateDebuggerDisplayReferences(ImmutableSortedSet.Create<int>());
+            ImmutableSortedSet<string> set = ImmutableSortedSet.Create("1", "2", "3");
+            DebuggerAttributeInfo info = DebuggerAttributes.ValidateDebuggerTypeProxyProperties(set);
+
+            object rootNode = DebuggerAttributes.GetFieldValue(ImmutableSortedSet.Create<object>(), "_root");
+            DebuggerAttributes.ValidateDebuggerDisplayReferences(rootNode);
+            PropertyInfo itemProperty = info.Properties.Single(pr => pr.GetCustomAttribute<DebuggerBrowsableAttribute>().State == DebuggerBrowsableState.RootHidden);
+            string[] items = itemProperty.GetValue(info.Instance) as string[];
+            Assert.Equal(set, items);
+        }
+
+        [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.UapAot, "Cannot do DebuggerAttribute testing on UapAot: requires internal Reflection on framework types.")]
+        public static void TestDebuggerAttributes_Null()
+        {
+            Type proxyType = DebuggerAttributes.GetProxyType(ImmutableSortedSet.Create("1", "2", "3"));
+            TargetInvocationException tie = Assert.Throws<TargetInvocationException>(() => Activator.CreateInstance(proxyType, (object)null));
+            Assert.IsType<ArgumentNullException>(tie.InnerException);
+        }
+
+        [Fact]
+        public void SymmetricExceptWithComparerTests()
+        {
+            var set = ImmutableSortedSet.Create<string>("a").WithComparer(StringComparer.OrdinalIgnoreCase);
+            var otherCollection = new[] {"A"};
+
+            var expectedSet = new SortedSet<string>(set, set.KeyComparer);
+            expectedSet.SymmetricExceptWith(otherCollection);
+
+            var actualSet = set.SymmetricExcept(otherCollection);
+            CollectionAssertAreEquivalent(expectedSet.ToList(), actualSet.ToList());
+        }
+
+        [Fact]
+        public void ItemRef()
+        {
+            var array = new[] { 1, 2, 3 }.ToImmutableSortedSet();
+
+            ref readonly var safeRef = ref array.ItemRef(1);
+            ref var unsafeRef = ref Unsafe.AsRef(safeRef);
+
+            Assert.Equal(2, array.ItemRef(1));
+
+            unsafeRef = 4;
+
+            Assert.Equal(4, array.ItemRef(1));
+        }
+
+        [Fact]
+        public void ItemRef_OutOfBounds()
+        {
+            var array = new[] { 1, 2, 3 }.ToImmutableSortedSet();
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => array.ItemRef(5));
+        }
+
         protected override IImmutableSet<T> Empty<T>()
         {
             return ImmutableSortedSet<T>.Empty;
@@ -348,7 +460,7 @@ namespace System.Collections.Immutable.Test
         /// <param name="comparer">The comparer used to obtain the empty set, if any.</param>
         private void EmptyTestHelper<T>(IImmutableSet<T> emptySet, T value, IComparer<T> comparer)
         {
-            Contract.Requires(emptySet != null);
+            Assert.NotNull(emptySet);
 
             this.EmptyTestHelper(emptySet);
             Assert.Same(emptySet, emptySet.ToImmutableSortedSet(comparer));

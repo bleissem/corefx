@@ -1,8 +1,9 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // The RegexReplacement class represents a substitution string for
-// use when using regexs to search/replace, etc. It's logically
+// use when using regexes to search/replace, etc. It's logically
 // a sequence intermixed (1) constant strings and (2) group numbers.
 
 using System.Collections;
@@ -13,21 +14,30 @@ namespace System.Text.RegularExpressions
 {
     internal sealed class RegexReplacement
     {
-        /*
-         * Since RegexReplacement shares the same parser as Regex,
-         * the constructor takes a RegexNode which is a concatenation
-         * of constant strings and backreferences.
-         */
-        internal RegexReplacement(String rep, RegexNode concat, Dictionary<Int32, Int32> _caps)
-        {
-            _rep = rep;
+        // Constants for special insertion patterns
+        internal const int Specials = 4;
+        internal const int LeftPortion = -1;
+        internal const int RightPortion = -2;
+        internal const int LastGroup = -3;
+        internal const int WholeString = -4;
 
+        private readonly string _rep;
+        private readonly List<string> _strings; // table of string constants
+        private readonly List<int> _rules;      // negative -> group #, positive -> string #
+
+        /// <summary>
+        /// Since RegexReplacement shares the same parser as Regex,
+        /// the constructor takes a RegexNode which is a concatenation
+        /// of constant strings and backreferences.
+        /// </summary>
+        internal RegexReplacement(string rep, RegexNode concat, Hashtable _caps)
+        {
             if (concat.Type() != RegexNode.Concatenate)
                 throw new ArgumentException(SR.ReplacementError);
 
             StringBuilder sb = StringBuilderCache.Acquire();
-            List<String> strings = new List<String>();
-            List<Int32> rules = new List<Int32>();
+            List<string> strings = new List<string>();
+            List<int> rules = new List<int>();
 
             for (int i = 0; i < concat.ChildCount(); i++)
             {
@@ -38,9 +48,11 @@ namespace System.Text.RegularExpressions
                     case RegexNode.Multi:
                         sb.Append(child._str);
                         break;
+
                     case RegexNode.One:
                         sb.Append(child._ch);
                         break;
+
                     case RegexNode.Ref:
                         if (sb.Length > 0)
                         {
@@ -55,6 +67,7 @@ namespace System.Text.RegularExpressions
 
                         rules.Add(-Specials - 1 - slot);
                         break;
+
                     default:
                         throw new ArgumentException(SR.ReplacementError);
                 }
@@ -68,26 +81,15 @@ namespace System.Text.RegularExpressions
 
             StringBuilderCache.Release(sb);
 
+            _rep = rep;
             _strings = strings;
             _rules = rules;
         }
 
-        internal String _rep;
-        internal List<String> _strings;          // table of string constants
-        internal List<Int32> _rules;            // negative -> group #, positive -> string #
-
-        // constants for special insertion patterns
-
-        internal const int Specials = 4;
-        internal const int LeftPortion = -1;
-        internal const int RightPortion = -2;
-        internal const int LastGroup = -3;
-        internal const int WholeString = -4;
-
-        /*
-         * Given a Match, emits into the StringBuilder the evaluated
-         * substitution pattern.
-         */
+        /// <summary>
+        /// Given a Match, emits into the StringBuilder the evaluated
+        /// substitution pattern.
+        /// </summary>
         private void ReplacementImpl(StringBuilder sb, Match match)
         {
             for (int i = 0; i < _rules.Count; i++)
@@ -118,11 +120,11 @@ namespace System.Text.RegularExpressions
             }
         }
 
-        /*
-         * Given a Match, emits into the List<String> the evaluated
-         * Right-to-Left substitution pattern.
-         */
-        private void ReplacementImplRTL(List<String> al, Match match)
+        /// <summary>
+        /// Given a Match, emits into the List<string> the evaluated
+        /// Right-to-Left substitution pattern.
+        /// </summary>
+        private void ReplacementImplRTL(List<string> al, Match match)
         {
             for (int i = _rules.Count - 1; i >= 0; i--)
             {
@@ -152,21 +154,18 @@ namespace System.Text.RegularExpressions
             }
         }
 
-        /*
-         * The original pattern string
-         */
-        internal String Pattern
+        /// <summary>
+        /// The original pattern string
+        /// </summary>
+        internal string Pattern
         {
-            get
-            {
-                return _rep;
-            }
+            get { return _rep; }
         }
 
-        /*
-         * Returns the replacement result for a single match
-         */
-        internal String Replacement(Match match)
+        /// <summary>
+        /// Returns the replacement result for a single match
+        /// </summary>
+        internal string Replacement(Match match)
         {
             StringBuilder sb = StringBuilderCache.Acquire();
 
@@ -175,34 +174,29 @@ namespace System.Text.RegularExpressions
             return StringBuilderCache.GetStringAndRelease(sb);
         }
 
-        /*
-         * Three very similar algorithms appear below: replace (pattern),
-         * replace (evaluator), and split.
-         */
+        // Three very similar algorithms appear below: replace (pattern),
+        // replace (evaluator), and split.
 
-
-        /*
-         * Replaces all ocurrances of the regex in the string with the
-         * replacement pattern.
-         *
-         * Note that the special case of no matches is handled on its own:
-         * with no matches, the input string is returned unchanged.
-         * The right-to-left case is split out because StringBuilder
-         * doesn't handle right-to-left string building directly very well.
-         */
-        internal String Replace(Regex regex, String input, int count, int startat)
+        /// <summary>
+        /// Replaces all occurrences of the regex in the string with the
+        /// replacement pattern.
+        ///
+        /// Note that the special case of no matches is handled on its own:
+        /// with no matches, the input string is returned unchanged.
+        /// The right-to-left case is split out because StringBuilder
+        /// doesn't handle right-to-left string building directly very well.
+        /// </summary>
+        internal string Replace(Regex regex, string input, int count, int startat)
         {
-            Match match;
-
             if (count < -1)
-                throw new ArgumentOutOfRangeException("count", SR.CountTooSmall);
+                throw new ArgumentOutOfRangeException(nameof(count), SR.CountTooSmall);
             if (startat < 0 || startat > input.Length)
-                throw new ArgumentOutOfRangeException("startat", SR.BeginIndexNotNegative);
+                throw new ArgumentOutOfRangeException(nameof(startat), SR.BeginIndexNotNegative);
 
             if (count == 0)
                 return input;
 
-            match = regex.Match(input, startat);
+            Match match = regex.Match(input, startat);
             if (!match.Success)
             {
                 return input;
@@ -233,7 +227,7 @@ namespace System.Text.RegularExpressions
                 }
                 else
                 {
-                    List<String> al = new List<String>();
+                    List<string> al = new List<string>();
                     int prevat = input.Length;
 
                     do
@@ -262,31 +256,29 @@ namespace System.Text.RegularExpressions
             }
         }
 
-        /*
-         * Replaces all ocurrances of the regex in the string with the
-         * replacement evaluator.
-         *
-         * Note that the special case of no matches is handled on its own:
-         * with no matches, the input string is returned unchanged.
-         * The right-to-left case is split out because StringBuilder
-         * doesn't handle right-to-left string building directly very well.
-         */
-        internal static String Replace(MatchEvaluator evaluator, Regex regex,
-                                       String input, int count, int startat)
+        /// <summary>
+        /// Replaces all occurrences of the regex in the string with the
+        /// replacement evaluator.
+        ///
+        /// Note that the special case of no matches is handled on its own:
+        /// with no matches, the input string is returned unchanged.
+        /// The right-to-left case is split out because StringBuilder
+        /// doesn't handle right-to-left string building directly very well.
+        /// </summary>
+        internal static string Replace(MatchEvaluator evaluator, Regex regex,
+                                       string input, int count, int startat)
         {
-            Match match;
-
             if (evaluator == null)
-                throw new ArgumentNullException("evaluator");
+                throw new ArgumentNullException(nameof(evaluator));
             if (count < -1)
-                throw new ArgumentOutOfRangeException("count", SR.CountTooSmall);
+                throw new ArgumentOutOfRangeException(nameof(count), SR.CountTooSmall);
             if (startat < 0 || startat > input.Length)
-                throw new ArgumentOutOfRangeException("startat", SR.BeginIndexNotNegative);
+                throw new ArgumentOutOfRangeException(nameof(startat), SR.BeginIndexNotNegative);
 
             if (count == 0)
                 return input;
 
-            match = regex.Match(input, startat);
+            Match match = regex.Match(input, startat);
 
             if (!match.Success)
             {
@@ -320,7 +312,7 @@ namespace System.Text.RegularExpressions
                 }
                 else
                 {
-                    List<String> al = new List<String>();
+                    List<string> al = new List<string>();
                     int prevat = input.Length;
 
                     do
@@ -351,41 +343,39 @@ namespace System.Text.RegularExpressions
             }
         }
 
-        /*
-         * Does a split. In the right-to-left case we reorder the
-         * array to be forwards.
-         */
-        internal static String[] Split(Regex regex, String input, int count, int startat)
+        /// <summary>
+        /// Does a split. In the right-to-left case we reorder the
+        /// array to be forwards.
+        /// </summary>
+        internal static string[] Split(Regex regex, string input, int count, int startat)
         {
-            Match match;
-            String[] result;
-
             if (count < 0)
-                throw new ArgumentOutOfRangeException("count", SR.CountTooSmall);
-
+                throw new ArgumentOutOfRangeException(nameof(count), SR.CountTooSmall);
             if (startat < 0 || startat > input.Length)
-                throw new ArgumentOutOfRangeException("startat", SR.BeginIndexNotNegative);
+                throw new ArgumentOutOfRangeException(nameof(startat), SR.BeginIndexNotNegative);
+
+            string[] result;
 
             if (count == 1)
             {
-                result = new String[1];
+                result = new string[1];
                 result[0] = input;
                 return result;
             }
 
             count -= 1;
 
-            match = regex.Match(input, startat);
+            Match match = regex.Match(input, startat);
 
             if (!match.Success)
             {
-                result = new String[1];
+                result = new string[1];
                 result[0] = input;
                 return result;
             }
             else
             {
-                List<String> al = new List<String>();
+                List<string> al = new List<string>();
 
                 if (!regex.RightToLeft)
                 {

@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // Capture is just a location/length pair that indicates the
 // location of a regular expression match. A single regexp
@@ -14,11 +15,11 @@ namespace System.Text.RegularExpressions
     /// </summary>
     public class Capture
     {
-        internal String _text;
+        internal string _text;
         internal int _index;
         internal int _length;
 
-        internal Capture(String text, int i, int l)
+        internal Capture(string text, int i, int l)
         {
             _text = text;
             _index = i;
@@ -71,7 +72,7 @@ namespace System.Text.RegularExpressions
         /// <summary>
         /// Returns the substring that was matched.
         /// </summary>
-        override public String ToString()
+        override public string ToString()
         {
             return Value;
         }
@@ -79,7 +80,7 @@ namespace System.Text.RegularExpressions
         /*
          * The original string
          */
-        internal String GetOriginalString()
+        internal string GetOriginalString()
         {
             return _text;
         }
@@ -87,7 +88,7 @@ namespace System.Text.RegularExpressions
         /*
          * The substring to the left of the capture
          */
-        internal String GetLeftSubstring()
+        internal string GetLeftSubstring()
         {
             return _text.Substring(0, _index);
         }
@@ -95,25 +96,10 @@ namespace System.Text.RegularExpressions
         /*
          * The substring to the right of the capture
          */
-        internal String GetRightSubstring()
+        internal string GetRightSubstring()
         {
             return _text.Substring(_index + _length, _text.Length - _index - _length);
         }
 
-#if DEBUG
-        internal virtual String Description()
-        {
-            StringBuilder Sb = new StringBuilder();
-
-            Sb.Append("(I = ");
-            Sb.Append(_index);
-            Sb.Append(", L = ");
-            Sb.Append(_length);
-            Sb.Append("): ");
-            Sb.Append(_text, _index, _length);
-
-            return Sb.ToString();
-        }
-#endif
     }
 }

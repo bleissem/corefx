@@ -1,5 +1,6 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -19,12 +20,6 @@ namespace System.Threading.Tasks.Dataflow.Internal
     {
         /// <summary>A size greater than or equal to the size of the most common CPU cache lines.</summary>
         internal const int CACHE_LINE_SIZE = 128;
-    }
-
-    /// <summary>Padding structure used to minimize false sharing in SingleProducerSingleConsumerQueue{T}.</summary>
-    [StructLayout(LayoutKind.Explicit, Size = Padding.CACHE_LINE_SIZE - sizeof(Int32))] // Based on common case of 64-byte cache lines
-    internal struct PaddingForInt32
-    {
     }
 
     /// <summary>Value type that contains single Int64 value padded on both sides.</summary>

@@ -1,13 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections;
-using System.Globalization;
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 namespace System.Collections.Specialized
 {
     /// <devdoc>
-    ///  <para> 
+    ///  <para>
     ///    This data structure implements IDictionary first using a linked list
     ///    (ListDictionary) and then switching over to use Hashtable when large. This is recommended
     ///    for cases where the number of elements in a dictionary is unknown and might be small.
@@ -16,6 +14,8 @@ namespace System.Collections.Specialized
     ///    ambient culture and has been optimized for looking up case-insensitive symbols
     ///  </para>
     /// </devdoc>
+    [Serializable]
+    [System.Runtime.CompilerServices.TypeForwardedFrom("System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089")]
     public class HybridDictionary : IDictionary
     {
         // These numbers have been carefully tested to be optimal. Please don't change them
@@ -25,9 +25,9 @@ namespace System.Collections.Specialized
         private const int FixedSizeCutoverPoint = 6;
 
         // Instance variables. This keeps the HybridDictionary very light-weight when empty
-        private ListDictionary _list;
-        private Hashtable _hashtable;
-        private readonly bool _caseInsensitive;
+        private ListDictionary list; // Do not rename (binary serialization)
+        private Hashtable hashtable; // Do not rename (binary serialization)
+        private readonly bool caseInsensitive; // Do not rename (binary serialization)
 
         public HybridDictionary()
         {
@@ -39,21 +39,21 @@ namespace System.Collections.Specialized
 
         public HybridDictionary(bool caseInsensitive)
         {
-            _caseInsensitive = caseInsensitive;
+            this.caseInsensitive = caseInsensitive;
         }
 
         public HybridDictionary(int initialSize, bool caseInsensitive)
         {
-            _caseInsensitive = caseInsensitive;
+            this.caseInsensitive = caseInsensitive;
             if (initialSize >= FixedSizeCutoverPoint)
             {
                 if (caseInsensitive)
                 {
-                    _hashtable = new Hashtable(initialSize, StringComparer.OrdinalIgnoreCase);
+                    hashtable = new Hashtable(initialSize, StringComparer.OrdinalIgnoreCase);
                 }
                 else
                 {
-                    _hashtable = new Hashtable(initialSize);
+                    hashtable = new Hashtable(initialSize);
                 }
             }
         }
@@ -64,53 +64,50 @@ namespace System.Collections.Specialized
             {
                 // Hashtable supports multiple read, one writer thread safety.
                 // Although we never made the same guarantee for HybridDictionary,
-                // it is still nice to do the same thing here since we have recommended 
-                // HybridDictioary as replacement for Hashtable.
-                ListDictionary cachedList = _list;
-                if (_hashtable != null)
+                // it is still nice to do the same thing here since we have recommended
+                // HybridDictionary as replacement for Hashtable.
+                ListDictionary cachedList = list;
+                if (hashtable != null)
                 {
-                    return _hashtable[key];
+                    return hashtable[key];
                 }
                 else if (cachedList != null)
                 {
                     return cachedList[key];
                 }
-                else
-                {             
-                    // cachedList can be null in two cases:
-                    //   (1) The dictionary is empty, we will return null in this case
-                    //   (2) There is writer which is doing ChangeOver. However in that case
-                    //       we should see the change to hashtable as well. 
-                    //       So it should work just fine.
-                    if (key == null)
-                    {
-                        throw new ArgumentNullException("key", SR.ArgumentNull_Key);
-                    }
-                    return null;
+                // cachedList can be null in too cases:
+                //   (1) The dictionary is empty, we will return null in this case
+                //   (2) There is writer which is doing ChangeOver. However in that case
+                //       we should see the change to hashtable as well.
+                //       So it should work just fine.
+                else if (key == null)
+                {
+                    throw new ArgumentNullException(nameof(key));
                 }
+                return null;
             }
             set
             {
-                if (_hashtable != null)
+                if (hashtable != null)
                 {
-                    _hashtable[key] = value;
+                    hashtable[key] = value;
                 }
-                else if (_list != null)
+                else if (list != null)
                 {
-                    if (_list.Count >= CutoverPoint - 1)
+                    if (list.Count >= CutoverPoint - 1)
                     {
                         ChangeOver();
-                        _hashtable[key] = value;
+                        hashtable[key] = value;
                     }
                     else
                     {
-                        _list[key] = value;
+                        list[key] = value;
                     }
                 }
                 else
                 {
-                    _list = new ListDictionary(_caseInsensitive ? StringComparer.OrdinalIgnoreCase : null);
-                    _list[key] = value;
+                    list = new ListDictionary(caseInsensitive ? StringComparer.OrdinalIgnoreCase : null);
+                    list[key] = value;
                 }
             }
         }
@@ -119,19 +116,19 @@ namespace System.Collections.Specialized
         {
             get
             {
-                if (_list == null)
+                if (list == null)
                 {
-                    _list = new ListDictionary(_caseInsensitive ? StringComparer.OrdinalIgnoreCase : null);
+                    list = new ListDictionary(caseInsensitive ? StringComparer.OrdinalIgnoreCase : null);
                 }
-                return _list;
+                return list;
             }
         }
 
         private void ChangeOver()
         {
-            IDictionaryEnumerator en = _list.GetEnumerator();
+            IDictionaryEnumerator en = list.GetEnumerator();
             Hashtable newTable;
-            if (_caseInsensitive)
+            if (caseInsensitive)
             {
                 newTable = new Hashtable(InitialHashtableSize, StringComparer.OrdinalIgnoreCase);
             }
@@ -145,20 +142,20 @@ namespace System.Collections.Specialized
             }
 
             // Keep the order of writing to hashtable and list.
-            // We assume we will see the change in hashtable if list is set to null in 
-            // this method in another reader thread. 
-            _hashtable = newTable;
-            _list = null;
+            // We assume we will see the change in hashtable if list is set to null in
+            // this method in another reader thread.
+            hashtable = newTable;
+            list = null;
         }
 
         public int Count
         {
             get
             {
-                ListDictionary cachedList = _list;
-                if (_hashtable != null)
+                ListDictionary cachedList = list;
+                if (hashtable != null)
                 {
-                    return _hashtable.Count;
+                    return hashtable.Count;
                 }
                 else if (cachedList != null)
                 {
@@ -175,9 +172,9 @@ namespace System.Collections.Specialized
         {
             get
             {
-                if (_hashtable != null)
+                if (hashtable != null)
                 {
-                    return _hashtable.Keys;
+                    return hashtable.Keys;
                 }
                 else
                 {
@@ -222,9 +219,9 @@ namespace System.Collections.Specialized
         {
             get
             {
-                if (_hashtable != null)
+                if (hashtable != null)
                 {
-                    return _hashtable.Values;
+                    return hashtable.Values;
                 }
                 else
                 {
@@ -235,75 +232,69 @@ namespace System.Collections.Specialized
 
         public void Add(object key, object value)
         {
-            if (_hashtable != null)
+            if (hashtable != null)
             {
-                _hashtable.Add(key, value);
+                hashtable.Add(key, value);
             }
             else
             {
-                if (_list == null)
+                if (list == null)
                 {
-                    _list = new ListDictionary(_caseInsensitive ? StringComparer.OrdinalIgnoreCase : null);
-                    _list.Add(key, value);
+                    list = new ListDictionary(caseInsensitive ? StringComparer.OrdinalIgnoreCase : null);
+                    list.Add(key, value);
+                }
+                else if (list.Count + 1 >= CutoverPoint)
+                {
+                    ChangeOver();
+                    hashtable.Add(key, value);
                 }
                 else
                 {
-                    if (_list.Count + 1 >= CutoverPoint)
-                    {
-                        ChangeOver();
-                        _hashtable.Add(key, value);
-                    }
-                    else
-                    {
-                        _list.Add(key, value);
-                    }
+                    list.Add(key, value);
                 }
             }
         }
 
         public void Clear()
         {
-            if (_hashtable != null)
+            if (hashtable != null)
             {
-                Hashtable cachedHashtable = _hashtable;
-                _hashtable = null;
+                Hashtable cachedHashtable = hashtable;
+                hashtable = null;
                 cachedHashtable.Clear();
             }
 
-            if (_list != null)
+            if (list != null)
             {
-                ListDictionary cachedList = _list;
-                _list = null;
+                ListDictionary cachedList = list;
+                list = null;
                 cachedList.Clear();
             }
         }
 
         public bool Contains(object key)
         {
-            ListDictionary cachedList = _list;
-            if (_hashtable != null)
+            ListDictionary cachedList = list;
+            if (hashtable != null)
             {
-                return _hashtable.Contains(key);
+                return hashtable.Contains(key);
             }
             else if (cachedList != null)
             {
                 return cachedList.Contains(key);
             }
-            else
+            else if (key == null)
             {
-                if (key == null)
-                {
-                    throw new ArgumentNullException("key", SR.ArgumentNull_Key);
-                }
-                return false;
+                throw new ArgumentNullException(nameof(key));
             }
+            return false;
         }
 
         public void CopyTo(Array array, int index)
         {
-            if (_hashtable != null)
+            if (hashtable != null)
             {
-                _hashtable.CopyTo(array, index);
+                hashtable.CopyTo(array, index);
             }
             else
             {
@@ -313,46 +304,43 @@ namespace System.Collections.Specialized
 
         public IDictionaryEnumerator GetEnumerator()
         {
-            if (_hashtable != null)
+            if (hashtable != null)
             {
-                return _hashtable.GetEnumerator();
+                return hashtable.GetEnumerator();
             }
-            if (_list == null)
+            if (list == null)
             {
-                _list = new ListDictionary(_caseInsensitive ? StringComparer.OrdinalIgnoreCase : null);
+                list = new ListDictionary(caseInsensitive ? StringComparer.OrdinalIgnoreCase : null);
             }
-            return _list.GetEnumerator();
+            return list.GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            if (_hashtable != null)
+            if (hashtable != null)
             {
-                return _hashtable.GetEnumerator();
+                return hashtable.GetEnumerator();
             }
-            if (_list == null)
+            if (list == null)
             {
-                _list = new ListDictionary(_caseInsensitive ? StringComparer.OrdinalIgnoreCase : null);
+                list = new ListDictionary(caseInsensitive ? StringComparer.OrdinalIgnoreCase : null);
             }
-            return _list.GetEnumerator();
+            return list.GetEnumerator();
         }
 
         public void Remove(object key)
         {
-            if (_hashtable != null)
+            if (hashtable != null)
             {
-                _hashtable.Remove(key);
+                hashtable.Remove(key);
             }
-            else if (_list != null)
+            else if (list != null)
             {
-                _list.Remove(key);
+                list.Remove(key);
             }
-            else
+            else if (key == null)
             {
-                if (key == null)
-                {
-                    throw new ArgumentNullException("key", SR.ArgumentNull_Key);
-                }
+                throw new ArgumentNullException(nameof(key));
             }
         }
     }

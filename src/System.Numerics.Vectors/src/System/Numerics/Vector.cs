@@ -1,9 +1,9 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-// This file is auto-generated, do not make permanent modifications.
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
-using System.Diagnostics.Contracts;
 using System.Globalization;
+using System.Numerics.Hashing;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -28,7 +28,7 @@ namespace System.Numerics
     *        2. Allows reflection to work:
     *            - If a method is called via reflection, it will not be "intrinsified", which would cause issues if we did
     *              not provide an implementation for that case (i.e. if it only included a case which assumed 16-byte registers)
-    *    (NOTE: It is assumed that Vector.IsHardwareAccelerated will be a compile-time constant, eliminating these checks 
+    *    (NOTE: It is assumed that Vector.IsHardwareAccelerated will be a compile-time constant, eliminating these checks
     *        from the JIT'd code.)
     *
     * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -53,27 +53,20 @@ namespace System.Numerics
         {
             get
             {
-                if (Vector.IsHardwareAccelerated)
-                {
-                    throw new NotSupportedException(SR.GetString("Reflection_MethodNotSupported"));
-                }
-                else
-                {
-                    return count;
-                }
+                return s_count;
             }
         }
-        private static int count = InitializeCount();
+        private static readonly int s_count = InitializeCount();
 
-        /// <summary> 
-        /// Returns a vector containing all zeroes. 
+        /// <summary>
+        /// Returns a vector containing all zeroes.
         /// </summary>
         [JitIntrinsic]
         public static Vector<T> Zero { get { return zero; } }
         private static readonly Vector<T> zero = new Vector<T>(GetZeroValue());
 
-        /// <summary> 
-        /// Returns a vector containing all ones. 
+        /// <summary>
+        /// Returns a vector containing all ones.
         /// </summary>
         [JitIntrinsic]
         public static Vector<T> One { get { return one; } }
@@ -84,55 +77,67 @@ namespace System.Numerics
         #endregion Static Members
 
         #region Static Initialization
-        private static int InitializeCount()
+        private struct VectorSizeHelper
         {
-            Contract.Requires(
-                Vector.IsHardwareAccelerated == false,
-                "InitializeCount cannot be invoked when running under hardware acceleration");
+            internal Vector<T> _placeholder;
+            internal byte _byte;
+        }
+
+		// Calculates the size of this struct in bytes, by computing the offset of a field in a structure
+        private static unsafe int InitializeCount()
+        {
+            VectorSizeHelper vsh;
+            byte* vectorBase = &vsh._placeholder.register.byte_0;
+            byte* byteBase = &vsh._byte;
+            int vectorSizeInBytes = (int)(byteBase - vectorBase);
+
+            int typeSizeInBytes = -1;
             if (typeof(T) == typeof(Byte))
             {
-                return 16;
+                typeSizeInBytes = sizeof(Byte);
             }
             else if (typeof(T) == typeof(SByte))
             {
-                return 16;
+                typeSizeInBytes = sizeof(SByte);
             }
             else if (typeof(T) == typeof(UInt16))
             {
-                return 8;
+                typeSizeInBytes = sizeof(UInt16);
             }
             else if (typeof(T) == typeof(Int16))
             {
-                return 8;
+                typeSizeInBytes = sizeof(Int16);
             }
             else if (typeof(T) == typeof(UInt32))
             {
-                return 4;
+                typeSizeInBytes = sizeof(UInt32);
             }
             else if (typeof(T) == typeof(Int32))
             {
-                return 4;
+                typeSizeInBytes = sizeof(Int32);
             }
             else if (typeof(T) == typeof(UInt64))
             {
-                return 2;
+                typeSizeInBytes = sizeof(UInt64);
             }
             else if (typeof(T) == typeof(Int64))
             {
-                return 2;
+                typeSizeInBytes = sizeof(Int64);
             }
             else if (typeof(T) == typeof(Single))
             {
-                return 4;
+                typeSizeInBytes = sizeof(Single);
             }
             else if (typeof(T) == typeof(Double))
             {
-                return 2;
+                typeSizeInBytes = sizeof(Double);
             }
             else
             {
-                throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
+
+            return vectorSizeInBytes / typeSizeInBytes;
         }
         #endregion Static Initialization
 
@@ -348,14 +353,14 @@ namespace System.Numerics
             }
         }
 
-        /// <summary> 
+        /// <summary>
         /// Constructs a vector from the given array. The size of the given array must be at least Vector'T.Count.
         /// </summary>
         [JitIntrinsic]
         public unsafe Vector(T[] values) : this(values, 0) { }
 
-        /// <summary> 
-        /// Constructs a vector from the given array, starting from the given index. 
+        /// <summary>
+        /// Constructs a vector from the given array, starting from the given index.
         /// The array must contain at least Vector'T.Count from the given index.
         /// </summary>
         public unsafe Vector(T[] values, int index)
@@ -363,7 +368,8 @@ namespace System.Numerics
         {
             if (values == null)
             {
-                throw new ArgumentNullException("values");
+                // Match the JIT's exception type here. For perf, a NullReference is thrown instead of an ArgumentNull.
+                throw new NullReferenceException(SR.Arg_NullArgumentNullRef);
             }
             if (index < 0 || (values.Length - index) < Count)
             {
@@ -605,12 +611,12 @@ namespace System.Numerics
         }
 
 #pragma warning disable 3001 // void* is not a CLS-Compliant argument type
-        private unsafe Vector(void* dataPointer) : this(dataPointer, 0) { }
+        internal unsafe Vector(void* dataPointer) : this(dataPointer, 0) { }
 #pragma warning restore 3001 // void* is not a CLS-Compliant argument type
 
 #pragma warning disable 3001 // void* is not a CLS-Compliant argument type
         // Implemented with offset if this API ever becomes public; an offset of 0 is used internally.
-        private unsafe Vector(void* dataPointer, int offset)
+        internal unsafe Vector(void* dataPointer, int offset)
             : this()
         {
             if (typeof(T) == typeof(Byte))
@@ -735,7 +741,7 @@ namespace System.Numerics
             }
             else
             {
-                throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
         }
 #pragma warning restore 3001 // void* is not a CLS-Compliant argument type
@@ -747,7 +753,7 @@ namespace System.Numerics
         #endregion Constructors
 
         #region Public Instance Methods
-        /// <summary> 
+        /// <summary>
         /// Copies the vector to the given destination array. The destination array must be at least size Vector'T.Count.
         /// </summary>
         /// <param name="destination">The destination array which the values are copied into</param>
@@ -759,7 +765,7 @@ namespace System.Numerics
             CopyTo(destination, 0);
         }
 
-        /// <summary> 
+        /// <summary>
         /// Copies the vector to the given destination array. The destination array must be at least size Vector'T.Count.
         /// </summary>
         /// <param name="destination">The destination array which the values are copied into</param>
@@ -772,15 +778,16 @@ namespace System.Numerics
         {
             if (destination == null)
             {
-                throw new ArgumentNullException("values");
+                // Match the JIT's exception type here. For perf, a NullReference is thrown instead of an ArgumentNull.
+                throw new NullReferenceException(SR.Arg_NullArgumentNullRef);
             }
             if (startIndex < 0 || startIndex >= destination.Length)
             {
-                throw new ArgumentOutOfRangeException(SR.GetString("Arg_ArgumentOutOfRangeException", startIndex));
+                throw new ArgumentOutOfRangeException(nameof(startIndex), SR.Format(SR.Arg_ArgumentOutOfRangeException, startIndex));
             }
             if ((destination.Length - startIndex) < Count)
             {
-                throw new ArgumentException(SR.GetString("Arg_ElementsInSourceIsGreaterThanDestination", startIndex));
+                throw new ArgumentException(SR.Format(SR.Arg_ElementsInSourceIsGreaterThanDestination, startIndex));
             }
 
             if (Vector.IsHardwareAccelerated)
@@ -1037,7 +1044,7 @@ namespace System.Numerics
             }
         }
 
-        /// <summary> 
+        /// <summary>
         /// Returns the element at the given index.
         /// </summary>
         [JitIntrinsic]
@@ -1047,7 +1054,7 @@ namespace System.Numerics
             {
                 if (index >= Count || index < 0)
                 {
-                    throw new IndexOutOfRangeException(SR.GetString("Arg_ArgumentOutOfRangeException", index));
+                    throw new IndexOutOfRangeException(SR.Format(SR.Arg_ArgumentOutOfRangeException, index));
                 }
                 if (typeof(T) == typeof(Byte))
                 {
@@ -1121,7 +1128,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
         }
@@ -1270,7 +1277,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
         }
@@ -1289,7 +1296,7 @@ namespace System.Numerics
                 {
                     for (int g = 0; g < Count; g++)
                     {
-                        hash = HashCodeHelper.CombineHashCodes(hash, ((Byte)(object)this[g]).GetHashCode());
+                        hash = HashHelpers.Combine(hash, ((Byte)(object)this[g]).GetHashCode());
                     }
                     return hash;
                 }
@@ -1297,7 +1304,7 @@ namespace System.Numerics
                 {
                     for (int g = 0; g < Count; g++)
                     {
-                        hash = HashCodeHelper.CombineHashCodes(hash, ((SByte)(object)this[g]).GetHashCode());
+                        hash = HashHelpers.Combine(hash, ((SByte)(object)this[g]).GetHashCode());
                     }
                     return hash;
                 }
@@ -1305,7 +1312,7 @@ namespace System.Numerics
                 {
                     for (int g = 0; g < Count; g++)
                     {
-                        hash = HashCodeHelper.CombineHashCodes(hash, ((UInt16)(object)this[g]).GetHashCode());
+                        hash = HashHelpers.Combine(hash, ((UInt16)(object)this[g]).GetHashCode());
                     }
                     return hash;
                 }
@@ -1313,7 +1320,7 @@ namespace System.Numerics
                 {
                     for (int g = 0; g < Count; g++)
                     {
-                        hash = HashCodeHelper.CombineHashCodes(hash, ((Int16)(object)this[g]).GetHashCode());
+                        hash = HashHelpers.Combine(hash, ((Int16)(object)this[g]).GetHashCode());
                     }
                     return hash;
                 }
@@ -1321,7 +1328,7 @@ namespace System.Numerics
                 {
                     for (int g = 0; g < Count; g++)
                     {
-                        hash = HashCodeHelper.CombineHashCodes(hash, ((UInt32)(object)this[g]).GetHashCode());
+                        hash = HashHelpers.Combine(hash, ((UInt32)(object)this[g]).GetHashCode());
                     }
                     return hash;
                 }
@@ -1329,7 +1336,7 @@ namespace System.Numerics
                 {
                     for (int g = 0; g < Count; g++)
                     {
-                        hash = HashCodeHelper.CombineHashCodes(hash, ((Int32)(object)this[g]).GetHashCode());
+                        hash = HashHelpers.Combine(hash, ((Int32)(object)this[g]).GetHashCode());
                     }
                     return hash;
                 }
@@ -1337,7 +1344,7 @@ namespace System.Numerics
                 {
                     for (int g = 0; g < Count; g++)
                     {
-                        hash = HashCodeHelper.CombineHashCodes(hash, ((UInt64)(object)this[g]).GetHashCode());
+                        hash = HashHelpers.Combine(hash, ((UInt64)(object)this[g]).GetHashCode());
                     }
                     return hash;
                 }
@@ -1345,7 +1352,7 @@ namespace System.Numerics
                 {
                     for (int g = 0; g < Count; g++)
                     {
-                        hash = HashCodeHelper.CombineHashCodes(hash, ((Int64)(object)this[g]).GetHashCode());
+                        hash = HashHelpers.Combine(hash, ((Int64)(object)this[g]).GetHashCode());
                     }
                     return hash;
                 }
@@ -1353,7 +1360,7 @@ namespace System.Numerics
                 {
                     for (int g = 0; g < Count; g++)
                     {
-                        hash = HashCodeHelper.CombineHashCodes(hash, ((Single)(object)this[g]).GetHashCode());
+                        hash = HashHelpers.Combine(hash, ((Single)(object)this[g]).GetHashCode());
                     }
                     return hash;
                 }
@@ -1361,126 +1368,126 @@ namespace System.Numerics
                 {
                     for (int g = 0; g < Count; g++)
                     {
-                        hash = HashCodeHelper.CombineHashCodes(hash, ((Double)(object)this[g]).GetHashCode());
+                        hash = HashHelpers.Combine(hash, ((Double)(object)this[g]).GetHashCode());
                     }
                     return hash;
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
             else
             {
                 if (typeof(T) == typeof(Byte))
                 {
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_0.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_1.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_2.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_3.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_4.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_5.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_6.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_7.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_8.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_9.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_10.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_11.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_12.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_13.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_14.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.byte_15.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_0.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_1.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_2.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_3.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_4.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_5.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_6.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_7.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_8.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_9.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_10.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_11.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_12.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_13.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_14.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.byte_15.GetHashCode());
                     return hash;
                 }
                 else if (typeof(T) == typeof(SByte))
                 {
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_0.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_1.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_2.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_3.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_4.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_5.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_6.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_7.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_8.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_9.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_10.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_11.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_12.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_13.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_14.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.sbyte_15.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_0.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_1.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_2.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_3.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_4.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_5.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_6.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_7.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_8.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_9.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_10.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_11.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_12.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_13.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_14.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.sbyte_15.GetHashCode());
                     return hash;
                 }
                 else if (typeof(T) == typeof(UInt16))
                 {
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint16_0.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint16_1.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint16_2.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint16_3.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint16_4.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint16_5.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint16_6.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint16_7.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint16_0.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint16_1.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint16_2.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint16_3.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint16_4.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint16_5.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint16_6.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint16_7.GetHashCode());
                     return hash;
                 }
                 else if (typeof(T) == typeof(Int16))
                 {
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int16_0.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int16_1.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int16_2.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int16_3.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int16_4.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int16_5.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int16_6.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int16_7.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int16_0.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int16_1.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int16_2.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int16_3.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int16_4.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int16_5.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int16_6.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int16_7.GetHashCode());
                     return hash;
                 }
                 else if (typeof(T) == typeof(UInt32))
                 {
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint32_0.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint32_1.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint32_2.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint32_3.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint32_0.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint32_1.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint32_2.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint32_3.GetHashCode());
                     return hash;
                 }
                 else if (typeof(T) == typeof(Int32))
                 {
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int32_0.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int32_1.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int32_2.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int32_3.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int32_0.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int32_1.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int32_2.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int32_3.GetHashCode());
                     return hash;
                 }
                 else if (typeof(T) == typeof(UInt64))
                 {
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint64_0.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.uint64_1.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint64_0.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.uint64_1.GetHashCode());
                     return hash;
                 }
                 else if (typeof(T) == typeof(Int64))
                 {
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int64_0.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.int64_1.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int64_0.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.int64_1.GetHashCode());
                     return hash;
                 }
                 else if (typeof(T) == typeof(Single))
                 {
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.single_0.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.single_1.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.single_2.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.single_3.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.single_0.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.single_1.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.single_2.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.single_3.GetHashCode());
                     return hash;
                 }
                 else if (typeof(T) == typeof(Double))
                 {
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.double_0.GetHashCode());
-                    hash = HashCodeHelper.CombineHashCodes(hash, this.register.double_1.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.double_0.GetHashCode());
+                    hash = HashHelpers.Combine(hash, this.register.double_1.GetHashCode());
                     return hash;
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
         }
@@ -1505,7 +1512,7 @@ namespace System.Numerics
         }
 
         /// <summary>
-        /// Returns a String representing this vector, using the specified format string to format individual elements 
+        /// Returns a String representing this vector, using the specified format string to format individual elements
         /// and the given IFormatProvider.
         /// </summary>
         /// <param name="format">The format of individual elements.</param>
@@ -1634,7 +1641,7 @@ namespace System.Numerics
                     }
                     else
                     {
-                        throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                        throw new NotSupportedException(SR.Arg_TypeNotSupported);
                     }
                 }
                 else
@@ -1845,7 +1852,7 @@ namespace System.Numerics
                     }
                     else
                     {
-                        throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                        throw new NotSupportedException(SR.Arg_TypeNotSupported);
                     }
                 }
                 else
@@ -2057,7 +2064,7 @@ namespace System.Numerics
                     }
                     else
                     {
-                        throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                        throw new NotSupportedException(SR.Arg_TypeNotSupported);
                     }
                 }
                 else
@@ -2507,7 +2514,7 @@ namespace System.Numerics
                     }
                     else
                     {
-                        throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                        throw new NotSupportedException(SR.Arg_TypeNotSupported);
                     }
                 }
                 else
@@ -2745,11 +2752,11 @@ namespace System.Numerics
         }
 
         /// <summary>
-        /// Returns a boolean indicating whether any single pair of elements in the given vectors are equal.
+        /// Returns a boolean indicating whether any single pair of elements in the given vectors are not equal.
         /// </summary>
         /// <param name="left">The first vector to compare.</param>
         /// <param name="right">The second vector to compare.</param>
-        /// <returns>True if any element pairs are equal; False if no element pairs are equal.</returns>
+        /// <returns>True if left and right are not equal; False otherwise.</returns>
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(Vector<T> left, Vector<T> right)
         {
@@ -2973,7 +2980,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
             else
@@ -3087,7 +3094,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
         }
@@ -3190,7 +3197,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
             else
@@ -3304,7 +3311,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
         }
@@ -3407,7 +3414,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
             else
@@ -3521,7 +3528,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
         }
@@ -3623,7 +3630,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
             else
@@ -3690,7 +3697,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
         }
@@ -3792,7 +3799,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
             else
@@ -3906,7 +3913,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
         }
@@ -4008,7 +4015,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
             else
@@ -4122,7 +4129,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
         }
@@ -4259,7 +4266,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
         }
@@ -4274,7 +4281,7 @@ namespace System.Numerics
                     Byte* dataPtr = stackalloc Byte[Count];
                     for (int g = 0; g < Count; g++)
                     {
-                        dataPtr[g] = (Byte)Math.Sqrt((Byte)(object)value[g]);
+                        dataPtr[g] = unchecked((Byte)Math.Sqrt((Byte)(object)value[g]));
                     }
                     return new Vector<T>(dataPtr);
                 }
@@ -4283,7 +4290,7 @@ namespace System.Numerics
                     SByte* dataPtr = stackalloc SByte[Count];
                     for (int g = 0; g < Count; g++)
                     {
-                        dataPtr[g] = (SByte)Math.Sqrt((SByte)(object)value[g]);
+                        dataPtr[g] = unchecked((SByte)Math.Sqrt((SByte)(object)value[g]));
                     }
                     return new Vector<T>(dataPtr);
                 }
@@ -4292,7 +4299,7 @@ namespace System.Numerics
                     UInt16* dataPtr = stackalloc UInt16[Count];
                     for (int g = 0; g < Count; g++)
                     {
-                        dataPtr[g] = (UInt16)Math.Sqrt((UInt16)(object)value[g]);
+                        dataPtr[g] = unchecked((UInt16)Math.Sqrt((UInt16)(object)value[g]));
                     }
                     return new Vector<T>(dataPtr);
                 }
@@ -4301,7 +4308,7 @@ namespace System.Numerics
                     Int16* dataPtr = stackalloc Int16[Count];
                     for (int g = 0; g < Count; g++)
                     {
-                        dataPtr[g] = (Int16)Math.Sqrt((Int16)(object)value[g]);
+                        dataPtr[g] = unchecked((Int16)Math.Sqrt((Int16)(object)value[g]));
                     }
                     return new Vector<T>(dataPtr);
                 }
@@ -4310,7 +4317,7 @@ namespace System.Numerics
                     UInt32* dataPtr = stackalloc UInt32[Count];
                     for (int g = 0; g < Count; g++)
                     {
-                        dataPtr[g] = (UInt32)Math.Sqrt((UInt32)(object)value[g]);
+                        dataPtr[g] = unchecked((UInt32)Math.Sqrt((UInt32)(object)value[g]));
                     }
                     return new Vector<T>(dataPtr);
                 }
@@ -4319,7 +4326,7 @@ namespace System.Numerics
                     Int32* dataPtr = stackalloc Int32[Count];
                     for (int g = 0; g < Count; g++)
                     {
-                        dataPtr[g] = (Int32)Math.Sqrt((Int32)(object)value[g]);
+                        dataPtr[g] = unchecked((Int32)Math.Sqrt((Int32)(object)value[g]));
                     }
                     return new Vector<T>(dataPtr);
                 }
@@ -4328,7 +4335,7 @@ namespace System.Numerics
                     UInt64* dataPtr = stackalloc UInt64[Count];
                     for (int g = 0; g < Count; g++)
                     {
-                        dataPtr[g] = (UInt64)Math.Sqrt((UInt64)(object)value[g]);
+                        dataPtr[g] = unchecked((UInt64)Math.Sqrt((UInt64)(object)value[g]));
                     }
                     return new Vector<T>(dataPtr);
                 }
@@ -4337,7 +4344,7 @@ namespace System.Numerics
                     Int64* dataPtr = stackalloc Int64[Count];
                     for (int g = 0; g < Count; g++)
                     {
-                        dataPtr[g] = (Int64)Math.Sqrt((Int64)(object)value[g]);
+                        dataPtr[g] = unchecked((Int64)Math.Sqrt((Int64)(object)value[g]));
                     }
                     return new Vector<T>(dataPtr);
                 }
@@ -4346,7 +4353,7 @@ namespace System.Numerics
                     Single* dataPtr = stackalloc Single[Count];
                     for (int g = 0; g < Count; g++)
                     {
-                        dataPtr[g] = (Single)Math.Sqrt((Single)(object)value[g]);
+                        dataPtr[g] = unchecked((Single)Math.Sqrt((Single)(object)value[g]));
                     }
                     return new Vector<T>(dataPtr);
                 }
@@ -4355,13 +4362,13 @@ namespace System.Numerics
                     Double* dataPtr = stackalloc Double[Count];
                     for (int g = 0; g < Count; g++)
                     {
-                        dataPtr[g] = (Double)Math.Sqrt((Double)(object)value[g]);
+                        dataPtr[g] = unchecked((Double)Math.Sqrt((Double)(object)value[g]));
                     }
                     return new Vector<T>(dataPtr);
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
             else
@@ -4474,7 +4481,7 @@ namespace System.Numerics
                 }
                 else
                 {
-                    throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
                 }
             }
         }
@@ -4526,7 +4533,7 @@ namespace System.Numerics
             }
             else
             {
-                throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
         }
 
@@ -4575,7 +4582,7 @@ namespace System.Numerics
             }
             else
             {
-                throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
         }
 
@@ -4624,7 +4631,7 @@ namespace System.Numerics
             }
             else
             {
-                throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
         }
 
@@ -4633,47 +4640,47 @@ namespace System.Numerics
         {
             if (typeof(T) == typeof(Byte))
             {
-                return (T)(object)(Byte)((Byte)(object)left + (Byte)(object)right);
+                return (T)(object)unchecked((Byte)((Byte)(object)left + (Byte)(object)right));
             }
             else if (typeof(T) == typeof(SByte))
             {
-                return (T)(object)(SByte)((SByte)(object)left + (SByte)(object)right);
+                return (T)(object)unchecked((SByte)((SByte)(object)left + (SByte)(object)right));
             }
             else if (typeof(T) == typeof(UInt16))
             {
-                return (T)(object)(UInt16)((UInt16)(object)left + (UInt16)(object)right);
+                return (T)(object)unchecked((UInt16)((UInt16)(object)left + (UInt16)(object)right));
             }
             else if (typeof(T) == typeof(Int16))
             {
-                return (T)(object)(Int16)((Int16)(object)left + (Int16)(object)right);
+                return (T)(object)unchecked((Int16)((Int16)(object)left + (Int16)(object)right));
             }
             else if (typeof(T) == typeof(UInt32))
             {
-                return (T)(object)(UInt32)((UInt32)(object)left + (UInt32)(object)right);
+                return (T)(object)unchecked((UInt32)((UInt32)(object)left + (UInt32)(object)right));
             }
             else if (typeof(T) == typeof(Int32))
             {
-                return (T)(object)(Int32)((Int32)(object)left + (Int32)(object)right);
+                return (T)(object)unchecked((Int32)((Int32)(object)left + (Int32)(object)right));
             }
             else if (typeof(T) == typeof(UInt64))
             {
-                return (T)(object)(UInt64)((UInt64)(object)left + (UInt64)(object)right);
+                return (T)(object)unchecked((UInt64)((UInt64)(object)left + (UInt64)(object)right));
             }
             else if (typeof(T) == typeof(Int64))
             {
-                return (T)(object)(Int64)((Int64)(object)left + (Int64)(object)right);
+                return (T)(object)unchecked((Int64)((Int64)(object)left + (Int64)(object)right));
             }
             else if (typeof(T) == typeof(Single))
             {
-                return (T)(object)(Single)((Single)(object)left + (Single)(object)right);
+                return (T)(object)unchecked((Single)((Single)(object)left + (Single)(object)right));
             }
             else if (typeof(T) == typeof(Double))
             {
-                return (T)(object)(Double)((Double)(object)left + (Double)(object)right);
+                return (T)(object)unchecked((Double)((Double)(object)left + (Double)(object)right));
             }
             else
             {
-                throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
         }
 
@@ -4722,7 +4729,7 @@ namespace System.Numerics
             }
             else
             {
-                throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
         }
 
@@ -4731,47 +4738,47 @@ namespace System.Numerics
         {
             if (typeof(T) == typeof(Byte))
             {
-                return (T)(object)(Byte)((Byte)(object)left * (Byte)(object)right);
+                return (T)(object)unchecked((Byte)((Byte)(object)left * (Byte)(object)right));
             }
             else if (typeof(T) == typeof(SByte))
             {
-                return (T)(object)(SByte)((SByte)(object)left * (SByte)(object)right);
+                return (T)(object)unchecked((SByte)((SByte)(object)left * (SByte)(object)right));
             }
             else if (typeof(T) == typeof(UInt16))
             {
-                return (T)(object)(UInt16)((UInt16)(object)left * (UInt16)(object)right);
+                return (T)(object)unchecked((UInt16)((UInt16)(object)left * (UInt16)(object)right));
             }
             else if (typeof(T) == typeof(Int16))
             {
-                return (T)(object)(Int16)((Int16)(object)left * (Int16)(object)right);
+                return (T)(object)unchecked((Int16)((Int16)(object)left * (Int16)(object)right));
             }
             else if (typeof(T) == typeof(UInt32))
             {
-                return (T)(object)(UInt32)((UInt32)(object)left * (UInt32)(object)right);
+                return (T)(object)unchecked((UInt32)((UInt32)(object)left * (UInt32)(object)right));
             }
             else if (typeof(T) == typeof(Int32))
             {
-                return (T)(object)(Int32)((Int32)(object)left * (Int32)(object)right);
+                return (T)(object)unchecked((Int32)((Int32)(object)left * (Int32)(object)right));
             }
             else if (typeof(T) == typeof(UInt64))
             {
-                return (T)(object)(UInt64)((UInt64)(object)left * (UInt64)(object)right);
+                return (T)(object)unchecked((UInt64)((UInt64)(object)left * (UInt64)(object)right));
             }
             else if (typeof(T) == typeof(Int64))
             {
-                return (T)(object)(Int64)((Int64)(object)left * (Int64)(object)right);
+                return (T)(object)unchecked((Int64)((Int64)(object)left * (Int64)(object)right));
             }
             else if (typeof(T) == typeof(Single))
             {
-                return (T)(object)(Single)((Single)(object)left * (Single)(object)right);
+                return (T)(object)unchecked((Single)((Single)(object)left * (Single)(object)right));
             }
             else if (typeof(T) == typeof(Double))
             {
-                return (T)(object)(Double)((Double)(object)left * (Double)(object)right);
+                return (T)(object)unchecked((Double)((Double)(object)left * (Double)(object)right));
             }
             else
             {
-                throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
         }
 
@@ -4820,7 +4827,7 @@ namespace System.Numerics
             }
             else
             {
-                throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
         }
 
@@ -4879,7 +4886,7 @@ namespace System.Numerics
             }
             else
             {
-                throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
         }
 
@@ -4938,7 +4945,7 @@ namespace System.Numerics
             }
             else
             {
-                throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
         }
 
@@ -4987,9 +4994,555 @@ namespace System.Numerics
             }
             else
             {
-                throw new NotSupportedException(SR.GetString("Arg_TypeNotSupported", typeof(T)));
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
         }
         #endregion
+    }
+
+    public static partial class Vector
+    {
+        #region Widen/Narrow
+        /// <summary>
+        /// Widens a Vector{Byte} into two Vector{UInt16}'s.
+        /// <param name="source">The source vector whose elements are widened into the outputs.</param>
+        /// <param name="low">The first output vector, whose elements will contain the widened elements from lower indices in the source vector.</param>
+        /// <param name="high">The second output vector, whose elements will contain the widened elements from higher indices in the source vector.</param>
+        /// </summary>
+        [CLSCompliant(false)]
+        [JitIntrinsic]
+        public static unsafe void Widen(Vector<Byte> source, out Vector<UInt16> low, out Vector<UInt16> high)
+        {
+            int elements = Vector<Byte>.Count;
+            UInt16* lowPtr = stackalloc UInt16[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                lowPtr[i] = (UInt16)source[i];
+            }
+            UInt16* highPtr = stackalloc UInt16[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                highPtr[i] = (UInt16)source[i + (elements / 2)];
+            }
+
+            low = new Vector<UInt16>(lowPtr);
+            high = new Vector<UInt16>(highPtr);
+        }
+
+        /// <summary>
+        /// Widens a Vector{UInt16} into two Vector{UInt32}'s.
+        /// <param name="source">The source vector whose elements are widened into the outputs.</param>
+        /// <param name="low">The first output vector, whose elements will contain the widened elements from lower indices in the source vector.</param>
+        /// <param name="high">The second output vector, whose elements will contain the widened elements from higher indices in the source vector.</param>
+        /// </summary>
+        [CLSCompliant(false)]
+        [JitIntrinsic]
+        public static unsafe void Widen(Vector<UInt16> source, out Vector<UInt32> low, out Vector<UInt32> high)
+        {
+            int elements = Vector<UInt16>.Count;
+            UInt32* lowPtr = stackalloc UInt32[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                lowPtr[i] = (UInt32)source[i];
+            }
+            UInt32* highPtr = stackalloc UInt32[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                highPtr[i] = (UInt32)source[i + (elements / 2)];
+            }
+
+            low = new Vector<UInt32>(lowPtr);
+            high = new Vector<UInt32>(highPtr);
+        }
+
+        /// <summary>
+        /// Widens a Vector{UInt32} into two Vector{UInt64}'s.
+        /// <param name="source">The source vector whose elements are widened into the outputs.</param>
+        /// <param name="low">The first output vector, whose elements will contain the widened elements from lower indices in the source vector.</param>
+        /// <param name="high">The second output vector, whose elements will contain the widened elements from higher indices in the source vector.</param>
+        /// </summary>
+        [CLSCompliant(false)]
+        [JitIntrinsic]
+        public static unsafe void Widen(Vector<UInt32> source, out Vector<UInt64> low, out Vector<UInt64> high)
+        {
+            int elements = Vector<UInt32>.Count;
+            UInt64* lowPtr = stackalloc UInt64[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                lowPtr[i] = (UInt64)source[i];
+            }
+            UInt64* highPtr = stackalloc UInt64[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                highPtr[i] = (UInt64)source[i + (elements / 2)];
+            }
+
+            low = new Vector<UInt64>(lowPtr);
+            high = new Vector<UInt64>(highPtr);
+        }
+
+        /// <summary>
+        /// Widens a Vector{SByte} into two Vector{Int16}'s.
+        /// <param name="source">The source vector whose elements are widened into the outputs.</param>
+        /// <param name="low">The first output vector, whose elements will contain the widened elements from lower indices in the source vector.</param>
+        /// <param name="high">The second output vector, whose elements will contain the widened elements from higher indices in the source vector.</param>
+        /// </summary>
+        [CLSCompliant(false)]
+        [JitIntrinsic]
+        public static unsafe void Widen(Vector<SByte> source, out Vector<Int16> low, out Vector<Int16> high)
+        {
+            int elements = Vector<SByte>.Count;
+            Int16* lowPtr = stackalloc Int16[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                lowPtr[i] = (Int16)source[i];
+            }
+            Int16* highPtr = stackalloc Int16[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                highPtr[i] = (Int16)source[i + (elements / 2)];
+            }
+
+            low = new Vector<Int16>(lowPtr);
+            high = new Vector<Int16>(highPtr);
+        }
+
+        /// <summary>
+        /// Widens a Vector{Int16} into two Vector{Int32}'s.
+        /// <param name="source">The source vector whose elements are widened into the outputs.</param>
+        /// <param name="low">The first output vector, whose elements will contain the widened elements from lower indices in the source vector.</param>
+        /// <param name="high">The second output vector, whose elements will contain the widened elements from higher indices in the source vector.</param>
+        /// </summary>
+        [JitIntrinsic]
+        public static unsafe void Widen(Vector<Int16> source, out Vector<Int32> low, out Vector<Int32> high)
+        {
+            int elements = Vector<Int16>.Count;
+            Int32* lowPtr = stackalloc Int32[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                lowPtr[i] = (Int32)source[i];
+            }
+            Int32* highPtr = stackalloc Int32[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                highPtr[i] = (Int32)source[i + (elements / 2)];
+            }
+
+            low = new Vector<Int32>(lowPtr);
+            high = new Vector<Int32>(highPtr);
+        }
+
+        /// <summary>
+        /// Widens a Vector{Int32} into two Vector{Int64}'s.
+        /// <param name="source">The source vector whose elements are widened into the outputs.</param>
+        /// <param name="low">The first output vector, whose elements will contain the widened elements from lower indices in the source vector.</param>
+        /// <param name="high">The second output vector, whose elements will contain the widened elements from higher indices in the source vector.</param>
+        /// </summary>
+        [JitIntrinsic]
+        public static unsafe void Widen(Vector<Int32> source, out Vector<Int64> low, out Vector<Int64> high)
+        {
+            int elements = Vector<Int32>.Count;
+            Int64* lowPtr = stackalloc Int64[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                lowPtr[i] = (Int64)source[i];
+            }
+            Int64* highPtr = stackalloc Int64[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                highPtr[i] = (Int64)source[i + (elements / 2)];
+            }
+
+            low = new Vector<Int64>(lowPtr);
+            high = new Vector<Int64>(highPtr);
+        }
+
+        /// <summary>
+        /// Widens a Vector{Single} into two Vector{Double}'s.
+        /// <param name="source">The source vector whose elements are widened into the outputs.</param>
+        /// <param name="low">The first output vector, whose elements will contain the widened elements from lower indices in the source vector.</param>
+        /// <param name="high">The second output vector, whose elements will contain the widened elements from higher indices in the source vector.</param>
+        /// </summary>
+        [JitIntrinsic]
+        public static unsafe void Widen(Vector<Single> source, out Vector<Double> low, out Vector<Double> high)
+        {
+            int elements = Vector<Single>.Count;
+            Double* lowPtr = stackalloc Double[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                lowPtr[i] = (Double)source[i];
+            }
+            Double* highPtr = stackalloc Double[elements / 2];
+            for (int i = 0; i < elements / 2; i++)
+            {
+                highPtr[i] = (Double)source[i + (elements / 2)];
+            }
+
+            low = new Vector<Double>(lowPtr);
+            high = new Vector<Double>(highPtr);
+        }
+
+        /// <summary>
+        /// Narrows two Vector{UInt16}'s into one Vector{Byte}.
+        /// <param name="low">The first source vector, whose elements become the lower-index elements of the return value.</param>
+        /// <param name="high">The second source vector, whose elements become the higher-index elements of the return value.</param>
+        /// <returns>A Vector{Byte} containing elements narrowed from the source vectors.</returns>
+        /// </summary>
+        [CLSCompliant(false)]
+        [JitIntrinsic]
+        public static unsafe Vector<Byte> Narrow(Vector<UInt16> low, Vector<UInt16> high)
+        {
+		    unchecked
+		    {
+				int elements = Vector<Byte>.Count;
+				Byte* retPtr = stackalloc Byte[elements];
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i] = (Byte)low[i];
+				}
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i + (elements / 2)] = (Byte)high[i];
+				}
+
+				return new Vector<Byte>(retPtr);
+		    }
+        }
+
+        /// <summary>
+        /// Narrows two Vector{UInt32}'s into one Vector{UInt16}.
+        /// <param name="low">The first source vector, whose elements become the lower-index elements of the return value.</param>
+        /// <param name="high">The second source vector, whose elements become the higher-index elements of the return value.</param>
+        /// <returns>A Vector{UInt16} containing elements narrowed from the source vectors.</returns>
+        /// </summary>
+        [CLSCompliant(false)]
+        [JitIntrinsic]
+        public static unsafe Vector<UInt16> Narrow(Vector<UInt32> low, Vector<UInt32> high)
+        {
+		    unchecked
+		    {
+				int elements = Vector<UInt16>.Count;
+				UInt16* retPtr = stackalloc UInt16[elements];
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i] = (UInt16)low[i];
+				}
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i + (elements / 2)] = (UInt16)high[i];
+				}
+
+				return new Vector<UInt16>(retPtr);
+		    }
+        }
+
+        /// <summary>
+        /// Narrows two Vector{UInt64}'s into one Vector{UInt32}.
+        /// <param name="low">The first source vector, whose elements become the lower-index elements of the return value.</param>
+        /// <param name="high">The second source vector, whose elements become the higher-index elements of the return value.</param>
+        /// <returns>A Vector{UInt32} containing elements narrowed from the source vectors.</returns>
+        /// </summary>
+        [CLSCompliant(false)]
+        [JitIntrinsic]
+        public static unsafe Vector<UInt32> Narrow(Vector<UInt64> low, Vector<UInt64> high)
+        {
+		    unchecked
+		    {
+				int elements = Vector<UInt32>.Count;
+				UInt32* retPtr = stackalloc UInt32[elements];
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i] = (UInt32)low[i];
+				}
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i + (elements / 2)] = (UInt32)high[i];
+				}
+
+				return new Vector<UInt32>(retPtr);
+		    }
+        }
+
+        /// <summary>
+        /// Narrows two Vector{Int16}'s into one Vector{SByte}.
+        /// <param name="low">The first source vector, whose elements become the lower-index elements of the return value.</param>
+        /// <param name="high">The second source vector, whose elements become the higher-index elements of the return value.</param>
+        /// <returns>A Vector{SByte} containing elements narrowed from the source vectors.</returns>
+        /// </summary>
+        [CLSCompliant(false)]
+        [JitIntrinsic]
+        public static unsafe Vector<SByte> Narrow(Vector<Int16> low, Vector<Int16> high)
+        {
+		    unchecked
+		    {
+				int elements = Vector<SByte>.Count;
+				SByte* retPtr = stackalloc SByte[elements];
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i] = (SByte)low[i];
+				}
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i + (elements / 2)] = (SByte)high[i];
+				}
+
+				return new Vector<SByte>(retPtr);
+		    }
+        }
+
+        /// <summary>
+        /// Narrows two Vector{Int32}'s into one Vector{Int16}.
+        /// <param name="low">The first source vector, whose elements become the lower-index elements of the return value.</param>
+        /// <param name="high">The second source vector, whose elements become the higher-index elements of the return value.</param>
+        /// <returns>A Vector{Int16} containing elements narrowed from the source vectors.</returns>
+        /// </summary>
+        [JitIntrinsic]
+        public static unsafe Vector<Int16> Narrow(Vector<Int32> low, Vector<Int32> high)
+        {
+		    unchecked
+		    {
+				int elements = Vector<Int16>.Count;
+				Int16* retPtr = stackalloc Int16[elements];
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i] = (Int16)low[i];
+				}
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i + (elements / 2)] = (Int16)high[i];
+				}
+
+				return new Vector<Int16>(retPtr);
+		    }
+        }
+
+        /// <summary>
+        /// Narrows two Vector{Int64}'s into one Vector{Int32}.
+        /// <param name="low">The first source vector, whose elements become the lower-index elements of the return value.</param>
+        /// <param name="high">The second source vector, whose elements become the higher-index elements of the return value.</param>
+        /// <returns>A Vector{Int32} containing elements narrowed from the source vectors.</returns>
+        /// </summary>
+        [JitIntrinsic]
+        public static unsafe Vector<Int32> Narrow(Vector<Int64> low, Vector<Int64> high)
+        {
+		    unchecked
+		    {
+				int elements = Vector<Int32>.Count;
+				Int32* retPtr = stackalloc Int32[elements];
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i] = (Int32)low[i];
+				}
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i + (elements / 2)] = (Int32)high[i];
+				}
+
+				return new Vector<Int32>(retPtr);
+		    }
+        }
+
+        /// <summary>
+        /// Narrows two Vector{Double}'s into one Vector{Single}.
+        /// <param name="low">The first source vector, whose elements become the lower-index elements of the return value.</param>
+        /// <param name="high">The second source vector, whose elements become the higher-index elements of the return value.</param>
+        /// <returns>A Vector{Single} containing elements narrowed from the source vectors.</returns>
+        /// </summary>
+        [JitIntrinsic]
+        public static unsafe Vector<Single> Narrow(Vector<Double> low, Vector<Double> high)
+        {
+		    unchecked
+		    {
+				int elements = Vector<Single>.Count;
+				Single* retPtr = stackalloc Single[elements];
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i] = (Single)low[i];
+				}
+				for (int i = 0; i < elements / 2; i++)
+				{
+					retPtr[i + (elements / 2)] = (Single)high[i];
+				}
+
+				return new Vector<Single>(retPtr);
+		    }
+        }
+
+        #endregion Widen/Narrow
+
+        #region Same-Size Conversion
+        /// <summary>
+        /// Converts a Vector{Int32} to a Vector{Single}.
+        /// </summary>
+        /// <param name="value">The source vector.</param>
+        /// <returns>The converted vector.</returns>
+        [JitIntrinsic]
+        public static unsafe Vector<Single> ConvertToSingle(Vector<Int32> value)
+        {
+			unchecked
+			{
+				int elements = Vector<Single>.Count;
+				Single* retPtr = stackalloc Single[elements];
+				for (int i = 0; i < elements; i++)
+				{
+					retPtr[i] = (Single)value[i];
+				}
+
+				return new Vector<Single>(retPtr);
+			}
+        }
+
+        /// <summary>
+        /// Converts a Vector{UInt32} to a Vector{Single}.
+        /// </summary>
+        /// <param name="value">The source vector.</param>
+        /// <returns>The converted vector.</returns>
+        [CLSCompliant(false)]
+        [JitIntrinsic]
+        public static unsafe Vector<Single> ConvertToSingle(Vector<UInt32> value)
+        {
+			unchecked
+			{
+				int elements = Vector<Single>.Count;
+				Single* retPtr = stackalloc Single[elements];
+				for (int i = 0; i < elements; i++)
+				{
+					retPtr[i] = (Single)value[i];
+				}
+
+				return new Vector<Single>(retPtr);
+			}
+        }
+
+        /// <summary>
+        /// Converts a Vector{Int64} to a Vector{Double}.
+        /// </summary>
+        /// <param name="value">The source vector.</param>
+        /// <returns>The converted vector.</returns>
+        [JitIntrinsic]
+        public static unsafe Vector<Double> ConvertToDouble(Vector<Int64> value)
+        {
+			unchecked
+			{
+				int elements = Vector<Double>.Count;
+				Double* retPtr = stackalloc Double[elements];
+				for (int i = 0; i < elements; i++)
+				{
+					retPtr[i] = (Double)value[i];
+				}
+
+				return new Vector<Double>(retPtr);
+			}
+        }
+
+        /// <summary>
+        /// Converts a Vector{UInt64} to a Vector{Double}.
+        /// </summary>
+        /// <param name="value">The source vector.</param>
+        /// <returns>The converted vector.</returns>
+        [CLSCompliant(false)]
+        [JitIntrinsic]
+        public static unsafe Vector<Double> ConvertToDouble(Vector<UInt64> value)
+        {
+			unchecked
+			{
+				int elements = Vector<Double>.Count;
+				Double* retPtr = stackalloc Double[elements];
+				for (int i = 0; i < elements; i++)
+				{
+					retPtr[i] = (Double)value[i];
+				}
+
+				return new Vector<Double>(retPtr);
+			}
+        }
+
+        /// <summary>
+        /// Converts a Vector{Single} to a Vector{Int32}.
+        /// </summary>
+        /// <param name="value">The source vector.</param>
+        /// <returns>The converted vector.</returns>
+        [JitIntrinsic]
+        public static unsafe Vector<Int32> ConvertToInt32(Vector<Single> value)
+        {
+			unchecked
+			{
+				int elements = Vector<Int32>.Count;
+				Int32* retPtr = stackalloc Int32[elements];
+				for (int i = 0; i < elements; i++)
+				{
+					retPtr[i] = (Int32)value[i];
+				}
+
+				return new Vector<Int32>(retPtr);
+			}
+        }
+
+        /// <summary>
+        /// Converts a Vector{Single} to a Vector{UInt32}.
+        /// </summary>
+        /// <param name="value">The source vector.</param>
+        /// <returns>The converted vector.</returns>
+        [CLSCompliant(false)]
+        [JitIntrinsic]
+        public static unsafe Vector<UInt32> ConvertToUInt32(Vector<Single> value)
+        {
+			unchecked
+			{
+				int elements = Vector<UInt32>.Count;
+				UInt32* retPtr = stackalloc UInt32[elements];
+				for (int i = 0; i < elements; i++)
+				{
+					retPtr[i] = (UInt32)value[i];
+				}
+
+				return new Vector<UInt32>(retPtr);
+			}
+        }
+
+        /// <summary>
+        /// Converts a Vector{Double} to a Vector{Int64}.
+        /// </summary>
+        /// <param name="value">The source vector.</param>
+        /// <returns>The converted vector.</returns>
+        [JitIntrinsic]
+        public static unsafe Vector<Int64> ConvertToInt64(Vector<Double> value)
+        {
+			unchecked
+			{
+				int elements = Vector<Int64>.Count;
+				Int64* retPtr = stackalloc Int64[elements];
+				for (int i = 0; i < elements; i++)
+				{
+					retPtr[i] = (Int64)value[i];
+				}
+
+				return new Vector<Int64>(retPtr);
+			}
+        }
+
+        /// <summary>
+        /// Converts a Vector{Double} to a Vector{UInt64}.
+        /// </summary>
+        /// <param name="value">The source vector.</param>
+        /// <returns>The converted vector.</returns>
+        [CLSCompliant(false)]
+        [JitIntrinsic]
+        public static unsafe Vector<UInt64> ConvertToUInt64(Vector<Double> value)
+        {
+			unchecked
+			{
+				int elements = Vector<UInt64>.Count;
+				UInt64* retPtr = stackalloc UInt64[elements];
+				for (int i = 0; i < elements; i++)
+				{
+					retPtr[i] = (UInt64)value[i];
+				}
+
+				return new Vector<UInt64>(retPtr);
+			}
+        }
+
+        #endregion Same-Size Conversion
     }
 }

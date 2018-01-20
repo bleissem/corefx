@@ -1,6 +1,8 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
+using System.Globalization;
 using System.Runtime.InteropServices;
 using Xunit;
 
@@ -326,6 +328,19 @@ namespace System.Numerics.Tests
         }
         */
 
+        [Fact]
+        public void PlaneToStringTest()
+        {
+            Plane target = new Plane(1, 2, 3, 4);
+            string expected = string.Format(
+                CultureInfo.CurrentCulture,
+                "{{Normal:{0:G} D:{1}}}",
+                target.Normal,
+                target.D);
+
+            Assert.Equal(expected, target.ToString());
+        }
+
         [StructLayout(LayoutKind.Sequential)]
         struct Plane_2x
         {
@@ -351,10 +366,15 @@ namespace System.Numerics.Tests
         [Fact]
         public unsafe void PlaneFieldOffsetTest()
         {
-            Plane* ptr = (Plane*)0;
+            Plane plane = new Plane();
 
-            Assert.Equal(new IntPtr(0), new IntPtr(&ptr->Normal));
-            Assert.Equal(new IntPtr(12), new IntPtr(&ptr->D));
+            float* basePtr = &plane.Normal.X; // Take address of first element
+            Plane* planePtr = &plane; // Take address of whole Plane
+
+            Assert.Equal(new IntPtr(basePtr), new IntPtr(planePtr));
+
+            Assert.Equal(new IntPtr(basePtr + 0), new IntPtr(&plane.Normal));
+            Assert.Equal(new IntPtr(basePtr + 3), new IntPtr(&plane.D));
         }
     }
 }

@@ -1,5 +1,6 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -35,7 +36,7 @@ namespace System.Threading.Tasks.Dataflow
         private TaskCompletionSource<VoidResult> _lazyCompletionTaskSource;
         /// <summary>Whether all future messages should be declined.</summary>
         private bool _decliningPermanently;
-        /// <summary>Whether block completion is disallawed.</summary>
+        /// <summary>Whether block completion is disallowed.</summary>
         private bool _completionReserved;
         /// <summary>The header of the singly-assigned value.</summary>
         private DataflowMessageHeader _header;
@@ -64,7 +65,7 @@ namespace System.Threading.Tasks.Dataflow
         public WriteOnceBlock(Func<T, T> cloningFunction, DataflowBlockOptions dataflowBlockOptions)
         {
             // Validate arguments
-            if (dataflowBlockOptions == null) throw new ArgumentNullException("dataflowBlockOptions");
+            if (dataflowBlockOptions == null) throw new ArgumentNullException(nameof(dataflowBlockOptions));
             Contract.EndContractBlock();
 
             // Store the option
@@ -99,7 +100,7 @@ namespace System.Threading.Tasks.Dataflow
                 }
             }
 #if FEATURE_TRACING
-            var etwLog = DataflowEtwProvider.Log;
+            DataflowEtwProvider etwLog = DataflowEtwProvider.Log;
             if (etwLog.IsEnabled())
             {
                 etwLog.DataflowBlockCreated(this, dataflowBlockOptions);
@@ -114,8 +115,8 @@ namespace System.Threading.Tasks.Dataflow
         [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
         private void CompleteBlockAsync(IList<Exception> exceptions)
         {
-            Contract.Requires(_decliningPermanently, "We may get here only after we have started to decline permanently.");
-            Contract.Requires(_completionReserved, "We may get here only after we have reserved completion.");
+            Debug.Assert(_decliningPermanently, "We may get here only after we have started to decline permanently.");
+            Debug.Assert(_completionReserved, "We may get here only after we have reserved completion.");
             Common.ContractAssertMonitorStatus(ValueLock, held: false);
 
             // If there is no exceptions list, we offer the message around, and then complete.
@@ -127,7 +128,7 @@ namespace System.Threading.Tasks.Dataflow
                                                         Common.GetCreationOptionsForTask());
 
 #if FEATURE_TRACING
-                var etwLog = DataflowEtwProvider.Log;
+                DataflowEtwProvider etwLog = DataflowEtwProvider.Log;
                 if (etwLog.IsEnabled())
                 {
                     etwLog.TaskLaunchedForMessageHandling(
@@ -136,7 +137,7 @@ namespace System.Threading.Tasks.Dataflow
 #endif
 
                 // Start the task handling scheduling exceptions
-                var exception = Common.StartTaskSafe(taskForOutputProcessing, _dataflowBlockOptions.TaskScheduler);
+                Exception exception = Common.StartTaskSafe(taskForOutputProcessing, _dataflowBlockOptions.TaskScheduler);
                 if (exception != null) CompleteCore(exception, storeExceptionEvenIfAlreadyCompleting: true);
             }
             else
@@ -160,8 +161,8 @@ namespace System.Threading.Tasks.Dataflow
             // OfferToTargets calls to potentially multiple targets, each of which
             // could be faulty and throw an exception.  OfferToTargets creates a
             // list of all such exceptions and returns it.
-            // If m_value is null, OfferToTargets does nothing.
-            var exceptions = OfferToTargets();
+            // If _value is null, OfferToTargets does nothing.
+            List<Exception> exceptions = OfferToTargets();
             CompleteBlock(exceptions);
         }
 
@@ -171,14 +172,14 @@ namespace System.Threading.Tasks.Dataflow
         /// </remarks>
         private void CompleteBlock(IList<Exception> exceptions)
         {
-            // Do not invoke the CompletionTaskSource property if there is a chance that m_lazyCompletionTaskSource
+            // Do not invoke the CompletionTaskSource property if there is a chance that _lazyCompletionTaskSource
             // has not been initialized yet and we may have to complete normally, because that would defeat the 
             // sole purpose of the TCS being lazily initialized.
 
-            Contract.Requires(_lazyCompletionTaskSource == null || !_lazyCompletionTaskSource.Task.IsCompleted, "The task completion source must not be completed. This must be the only thread that ever completes the block.");
+            Debug.Assert(_lazyCompletionTaskSource == null || !_lazyCompletionTaskSource.Task.IsCompleted, "The task completion source must not be completed. This must be the only thread that ever completes the block.");
 
-            // Save the linked list of targets so that it could be traveresed later to propagate completion
-            var linkedTargets = _targetRegistry.ClearEntryPoints();
+            // Save the linked list of targets so that it could be traversed later to propagate completion
+            TargetRegistry<T>.LinkedTargetInfo linkedTargets = _targetRegistry.ClearEntryPoints();
 
             // Complete the block's completion task
             if (exceptions != null && exceptions.Count > 0)
@@ -204,7 +205,7 @@ namespace System.Threading.Tasks.Dataflow
             // Now that the completion task is completed, we may propagate completion to the linked targets
             _targetRegistry.PropagateCompletion(linkedTargets);
 #if FEATURE_TRACING
-            var etwLog = DataflowEtwProvider.Log;
+            DataflowEtwProvider etwLog = DataflowEtwProvider.Log;
             if (etwLog.IsEnabled())
             {
                 etwLog.DataflowBlockCompleted(this);
@@ -212,16 +213,16 @@ namespace System.Threading.Tasks.Dataflow
 #endif
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Fault"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Fault"]/*' />
         void IDataflowBlock.Fault(Exception exception)
         {
-            if (exception == null) throw new ArgumentNullException("exception");
+            if (exception == null) throw new ArgumentNullException(nameof(exception));
             Contract.EndContractBlock();
 
             CompleteCore(exception, storeExceptionEvenIfAlreadyCompleting: false);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Complete"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Complete"]/*' />
         public void Complete()
         {
             CompleteCore(exception: null, storeExceptionEvenIfAlreadyCompleting: false);
@@ -229,7 +230,7 @@ namespace System.Threading.Tasks.Dataflow
 
         private void CompleteCore(Exception exception, bool storeExceptionEvenIfAlreadyCompleting)
         {
-            Contract.Requires(exception != null || !storeExceptionEvenIfAlreadyCompleting,
+            Debug.Assert(exception != null || !storeExceptionEvenIfAlreadyCompleting,
                             "When storeExceptionEvenIfAlreadyCompleting is set to true, an exception must be provided.");
             Contract.EndContractBlock();
 
@@ -264,11 +265,11 @@ namespace System.Threading.Tasks.Dataflow
             }
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceive"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceive"]/*' />
         public Boolean TryReceive(Predicate<T> filter, out T item)
         {
             // No need to take the outgoing lock, as we don't need to synchronize with other
-            // targets, and m_value only ever goes from null to non-null, not the other way around.
+            // targets, and _value only ever goes from null to non-null, not the other way around.
 
             // If we have a value, give it up.  All receives on a successfully
             // completed WriteOnceBlock will return true, as long as the message
@@ -286,7 +287,7 @@ namespace System.Threading.Tasks.Dataflow
             }
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceiveAll"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceiveAll"]/*' />
         Boolean IReceivableSourceBlock<T>.TryReceiveAll(out IList<T> items)
         {
             // Try to receive the one item this block may have.
@@ -305,13 +306,13 @@ namespace System.Threading.Tasks.Dataflow
             }
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="LinkTo"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="LinkTo"]/*' />
         [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
         public IDisposable LinkTo(ITargetBlock<T> target, DataflowLinkOptions linkOptions)
         {
             // Validate arguments
-            if (target == null) throw new ArgumentNullException("target");
-            if (linkOptions == null) throw new ArgumentNullException("linkOptions");
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (linkOptions == null) throw new ArgumentNullException(nameof(linkOptions));
             Contract.EndContractBlock();
 
             bool hasValue;
@@ -343,15 +344,15 @@ namespace System.Threading.Tasks.Dataflow
             return Disposables.Nop;
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Completion"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Completion"]/*' />
         public Task Completion { get { return CompletionTaskSource.Task; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Targets/Member[@name="OfferMessage"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Targets/Member[@name="OfferMessage"]/*' />
         DataflowMessageStatus ITargetBlock<T>.OfferMessage(DataflowMessageHeader messageHeader, T messageValue, ISourceBlock<T> source, Boolean consumeToAccept)
         {
             // Validate arguments
-            if (!messageHeader.IsValid) throw new ArgumentException(Strings.Argument_InvalidMessageHeader, "messageHeader");
-            if (source == null && consumeToAccept) throw new ArgumentException(Strings.Argument_CantConsumeFromANullSource, "consumeToAccept");
+            if (!messageHeader.IsValid) throw new ArgumentException(SR.Argument_InvalidMessageHeader, nameof(messageHeader));
+            if (source == null && consumeToAccept) throw new ArgumentException(SR.Argument_CantConsumeFromANullSource, nameof(consumeToAccept));
             Contract.EndContractBlock();
 
             bool thisThreadReservedCompletion = false;
@@ -387,12 +388,12 @@ namespace System.Threading.Tasks.Dataflow
             return DataflowMessageStatus.Accepted;
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ConsumeMessage"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ConsumeMessage"]/*' />
         T ISourceBlock<T>.ConsumeMessage(DataflowMessageHeader messageHeader, ITargetBlock<T> target, out Boolean messageConsumed)
         {
             // Validate arguments
-            if (!messageHeader.IsValid) throw new ArgumentException(Strings.Argument_InvalidMessageHeader, "messageHeader");
-            if (target == null) throw new ArgumentNullException("target");
+            if (!messageHeader.IsValid) throw new ArgumentException(SR.Argument_InvalidMessageHeader, nameof(messageHeader));
+            if (target == null) throw new ArgumentNullException(nameof(target));
             Contract.EndContractBlock();
 
             // As long as the message being requested is the one we have, allow it to be consumed,
@@ -409,12 +410,12 @@ namespace System.Threading.Tasks.Dataflow
             }
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReserveMessage"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReserveMessage"]/*' />
         Boolean ISourceBlock<T>.ReserveMessage(DataflowMessageHeader messageHeader, ITargetBlock<T> target)
         {
             // Validate arguments
-            if (!messageHeader.IsValid) throw new ArgumentException(Strings.Argument_InvalidMessageHeader, "messageHeader");
-            if (target == null) throw new ArgumentNullException("target");
+            if (!messageHeader.IsValid) throw new ArgumentException(SR.Argument_InvalidMessageHeader, nameof(messageHeader));
+            if (target == null) throw new ArgumentNullException(nameof(target));
             Contract.EndContractBlock();
 
             // As long as the message is the one we have, it can be "reserved."
@@ -423,16 +424,16 @@ namespace System.Threading.Tasks.Dataflow
             return _header.Id == messageHeader.Id;
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReleaseReservation"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReleaseReservation"]/*' />
         void ISourceBlock<T>.ReleaseReservation(DataflowMessageHeader messageHeader, ITargetBlock<T> target)
         {
             // Validate arguments
-            if (!messageHeader.IsValid) throw new ArgumentException(Strings.Argument_InvalidMessageHeader, "messageHeader");
-            if (target == null) throw new ArgumentNullException("target");
+            if (!messageHeader.IsValid) throw new ArgumentException(SR.Argument_InvalidMessageHeader, nameof(messageHeader));
+            if (target == null) throw new ArgumentNullException(nameof(target));
             Contract.EndContractBlock();
 
             // As long as the message is the one we have, everything's fine.
-            if (_header.Id != messageHeader.Id) throw new InvalidOperationException(Strings.InvalidOperation_MessageNotReservedByTarget);
+            if (_header.Id != messageHeader.Id) throw new InvalidOperationException(SR.InvalidOperation_MessageNotReservedByTarget);
 
             // In other blocks, upon release we typically re-offer the message to all linked targets.
             // We need to do the same thing for WriteOnceBlock, in order to account for cases where the block
@@ -441,7 +442,7 @@ namespace System.Threading.Tasks.Dataflow
             // and all targets can get a copy, we don't need to broadcast to all targets, only to
             // the target that released the message.  Note that we don't care whether it's accepted
             // or not, nor do we care about any exceptions which may emerge (they should just propagate).
-            Contract.Assert(_header.IsValid, "A valid header is required.");
+            Debug.Assert(_header.IsValid, "A valid header is required.");
             bool useCloning = _cloningFunction != null;
             target.OfferMessage(_header, _value, this, consumeToAccept: useCloning);
         }
@@ -468,11 +469,11 @@ namespace System.Threading.Tasks.Dataflow
             List<Exception> exceptions = null;
             if (HasValue)
             {
-                var cur = _targetRegistry.FirstTargetNode;
+                TargetRegistry<T>.LinkedTargetInfo cur = _targetRegistry.FirstTargetNode;
                 while (cur != null)
                 {
-                    var next = cur.Next;
-                    var target = cur.Target;
+                    TargetRegistry<T>.LinkedTargetInfo next = cur.Next;
+                    ITargetBlock<T> target = cur.Target;
                     try
                     {
                         // Offer the message.  If there's a cloning function, we force the target to
@@ -519,7 +520,7 @@ namespace System.Threading.Tasks.Dataflow
         /// <summary>Gets the value being stored by the block.</summary>
         private T Value { get { return _header.IsValid ? _value : default(T); } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="ToString"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="ToString"]/*' />
         public override string ToString() { return Common.GetNameForDebugger(this, _dataflowBlockOptions); }
 
         /// <summary>The data to display in the debugger display attribute.</summary>
@@ -545,7 +546,7 @@ namespace System.Threading.Tasks.Dataflow
             /// <param name="writeOnceBlock">The WriteOnceBlock to view.</param>
             public DebugView(WriteOnceBlock<T> writeOnceBlock)
             {
-                Contract.Requires(writeOnceBlock != null, "Need a block with which to construct the debug view.");
+                Debug.Assert(writeOnceBlock != null, "Need a block with which to construct the debug view.");
                 _writeOnceBlock = writeOnceBlock;
             }
 

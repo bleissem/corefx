@@ -1,11 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
-using Validation;
 using Xunit;
 
-namespace System.Collections.Immutable.Test
+namespace System.Collections.Immutable.Tests
 {
     internal static class TestExtensionsMethods
     {
@@ -13,14 +13,14 @@ namespace System.Collections.Immutable.Test
 
         internal static IDictionary<TKey, TValue> ToReadOnlyDictionary<TKey, TValue>(this IImmutableDictionary<TKey, TValue> dictionary)
         {
-            Requires.NotNull(dictionary, "dictionary");
+            Requires.NotNull(dictionary, nameof(dictionary));
 
             return (IDictionary<TKey, TValue>)dictionary;
         }
 
         internal static IDictionary<TKey, TValue> ToBuilder<TKey, TValue>(this IImmutableDictionary<TKey, TValue> dictionary)
         {
-            Requires.NotNull(dictionary, "dictionary");
+            Requires.NotNull(dictionary, nameof(dictionary));
 
             var hashDictionary = dictionary as ImmutableDictionary<TKey, TValue>;
             if (hashDictionary != null)
@@ -77,6 +77,14 @@ namespace System.Collections.Immutable.Test
             // http://en.wikipedia.org/wiki/AVL_tree
             double heightMustBeLessThan = Math.Log(2, s_GoldenRatio) * Math.Log(Math.Sqrt(5) * ((count ?? node.Count) + 2), 2) - 2;
             Assert.True(node.Height < heightMustBeLessThan);
+        }
+
+        internal static void ValidateDefaultThisBehavior(Action a)
+        {
+            if (!PlatformDetection.IsNetNative) // ActiveIssue UapAot: TFS 428550, https://github.com/dotnet/corefx/issues/19016 - ImmutableArray's null-guard check (ThrowNullRefIfNotInitialized) can get optimized away by certain compilers.
+            {
+                Assert.Throws<NullReferenceException>(a);
+            }
         }
     }
 }

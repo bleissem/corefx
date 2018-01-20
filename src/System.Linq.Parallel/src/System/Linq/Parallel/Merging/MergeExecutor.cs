@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -11,7 +12,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 
 namespace System.Linq.Parallel
 {
@@ -50,16 +51,16 @@ namespace System.Linq.Parallel
             PartitionedStream<TInputOutput, TKey> partitions, bool ignoreOutput, ParallelMergeOptions options, TaskScheduler taskScheduler, bool isOrdered,
             CancellationState cancellationState, int queryId)
         {
-            Contract.Assert(partitions != null);
-            Contract.Assert(partitions.PartitionCount > 0);
-            Contract.Assert(!ignoreOutput || options == ParallelMergeOptions.FullyBuffered, "Pipelining with no output is not supported.");
+            Debug.Assert(partitions != null);
+            Debug.Assert(partitions.PartitionCount > 0);
+            Debug.Assert(!ignoreOutput || options == ParallelMergeOptions.FullyBuffered, "Pipelining with no output is not supported.");
 
             MergeExecutor<TInputOutput> mergeExecutor = new MergeExecutor<TInputOutput>();
             if (isOrdered && !ignoreOutput)
             {
                 if (options != ParallelMergeOptions.FullyBuffered && !partitions.OrdinalIndexState.IsWorseThan(OrdinalIndexState.Increasing))
                 {
-                    Contract.Assert(options == ParallelMergeOptions.NotBuffered || options == ParallelMergeOptions.AutoBuffered);
+                    Debug.Assert(options == ParallelMergeOptions.NotBuffered || options == ParallelMergeOptions.AutoBuffered);
                     bool autoBuffered = (options == ParallelMergeOptions.AutoBuffered);
 
                     if (partitions.PartitionCount > 1)
@@ -98,7 +99,7 @@ namespace System.Linq.Parallel
 
         private void Execute()
         {
-            Contract.Assert(_mergeHelper != null);
+            Debug.Assert(_mergeHelper != null);
             _mergeHelper.Execute();
         }
 
@@ -109,12 +110,12 @@ namespace System.Linq.Parallel
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return ((IEnumerable<TInputOutput>)this).GetEnumerator();
+            return GetEnumerator();
         }
 
         public IEnumerator<TInputOutput> GetEnumerator()
         {
-            Contract.Assert(_mergeHelper != null);
+            Debug.Assert(_mergeHelper != null);
             return _mergeHelper.GetEnumerator();
         }
 
@@ -129,7 +130,7 @@ namespace System.Linq.Parallel
 
         //-----------------------------------------------------------------------------------
         // This internal helper method is used to generate a set of asynchronous channels.
-        // The algorithm used by each channel contains the necessary synchronizationis to
+        // The algorithm used by each channel contains the necessary synchronizations to
         // ensure it is suitable for pipelined consumption.
         //
         // Arguments:
@@ -143,7 +144,7 @@ namespace System.Linq.Parallel
         {
             AsynchronousChannel<TInputOutput>[] channels = new AsynchronousChannel<TInputOutput>[partitionCount];
 
-            Contract.Assert(options == ParallelMergeOptions.NotBuffered || options == ParallelMergeOptions.AutoBuffered);
+            Debug.Assert(options == ParallelMergeOptions.NotBuffered || options == ParallelMergeOptions.AutoBuffered);
             TraceHelpers.TraceInfo("MergeExecutor::MakeChannels: setting up {0} async channels in prep for pipeline", partitionCount);
 
             // If we are pipelining, we need a channel that contains the necessary synchronization

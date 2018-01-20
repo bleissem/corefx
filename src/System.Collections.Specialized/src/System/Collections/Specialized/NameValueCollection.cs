@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 /*
  * Ordered String/String[] collection of name/value pairs with support for null key
@@ -7,20 +8,19 @@
  *
  */
 
-using System.Collections;
+using System.Runtime.Serialization;
 using System.Text;
-using System.Globalization;
 
 namespace System.Collections.Specialized
 {
     /// <devdoc>
-    /// <para>Represents a sorted collection of associated <see cref='System.String' qualify='true'/> keys and <see cref='System.String' qualify='true'/> values that 
+    /// <para>Represents a sorted collection of associated <see cref='System.String' qualify='true'/> keys and <see cref='System.String' qualify='true'/> values that
     ///    can be accessed either with the hash code of the key or with the index.</para>
     /// </devdoc>
     public class NameValueCollection : NameObjectCollectionBase
     {
-        private String[] _all;
-        private String[] _allKeys;
+        private String[] _all; // Do not rename (binary serialization)
+        private String[] _allKeys; // Do not rename (binary serialization)
 
         //
         // Constructors
@@ -36,7 +36,7 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        /// <para>Copies the entries from the specified <see cref='System.Collections.Specialized.NameValueCollection'/> to a new <see cref='System.Collections.Specialized.NameValueCollection'/> with the same initial capacity as 
+        /// <para>Copies the entries from the specified <see cref='System.Collections.Specialized.NameValueCollection'/> to a new <see cref='System.Collections.Specialized.NameValueCollection'/> with the same initial capacity as
         ///    the number of entries copied and using the default case-insensitive hash code
         ///    provider and the default case-insensitive comparer.</para>
         /// </devdoc>
@@ -46,8 +46,13 @@ namespace System.Collections.Specialized
             Add(col);
         }
 
+        [Obsolete("Please use NameValueCollection(IEqualityComparer) instead.")]
+        public NameValueCollection(IHashCodeProvider hashProvider, IComparer comparer) 
+            : base(hashProvider, comparer) {
+        }
+
         /// <devdoc>
-        /// <para>Creates an empty <see cref='System.Collections.Specialized.NameValueCollection'/> with 
+        /// <para>Creates an empty <see cref='System.Collections.Specialized.NameValueCollection'/> with
         ///    the specified initial capacity and using the default case-insensitive hash code
         ///    provider and the default case-insensitive comparer.</para>
         /// </devdoc>
@@ -65,7 +70,7 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        /// <para>Copies the entries from the specified <see cref='System.Collections.Specialized.NameValueCollection'/> to a new <see cref='System.Collections.Specialized.NameValueCollection'/> with the specified initial capacity or the 
+        /// <para>Copies the entries from the specified <see cref='System.Collections.Specialized.NameValueCollection'/> to a new <see cref='System.Collections.Specialized.NameValueCollection'/> with the specified initial capacity or the
         ///    same initial capacity as the number of entries copied, whichever is greater, and
         ///    using the default case-insensitive hash code provider and the default
         ///    case-insensitive comparer.</para>
@@ -75,11 +80,20 @@ namespace System.Collections.Specialized
         {
             if (col == null)
             {
-                throw new ArgumentNullException("col");
+                throw new ArgumentNullException(nameof(col));
             }
 
             this.Comparer = col.Comparer;
             Add(col);
+        }
+
+        [Obsolete("Please use NameValueCollection(Int32, IEqualityComparer) instead.")]
+        public NameValueCollection(int capacity, IHashCodeProvider hashProvider, IComparer comparer) 
+            : base(capacity, hashProvider, comparer) {
+        }
+
+        protected NameValueCollection(SerializationInfo info, StreamingContext context) : base(info, context)
+        {
         }
 
         //
@@ -143,7 +157,7 @@ namespace System.Collections.Specialized
         {
             if (c == null)
             {
-                throw new ArgumentNullException("c");
+                throw new ArgumentNullException(nameof(c));
             }
 
             InvalidateCachedArrays();
@@ -168,7 +182,7 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        ///    <para>Invalidates the cached arrays and removes all entries 
+        ///    <para>Invalidates the cached arrays and removes all entries
         ///       from the <see cref='System.Collections.Specialized.NameValueCollection'/>.</para>
         /// </devdoc>
         public virtual void Clear()
@@ -184,17 +198,17 @@ namespace System.Collections.Specialized
         {
             if (dest == null)
             {
-                throw new ArgumentNullException("dest");
+                throw new ArgumentNullException(nameof(dest));
             }
 
             if (dest.Rank != 1)
             {
-                throw new ArgumentException(SR.Arg_MultiRank);
+                throw new ArgumentException(SR.Arg_MultiRank, nameof(dest));
             }
 
             if (index < 0)
             {
-                throw new ArgumentOutOfRangeException("index", SR.Format(SR.IndexOutOfRange, index.ToString(CultureInfo.CurrentCulture)));
+                throw new ArgumentOutOfRangeException(nameof(index), index, SR.ArgumentOutOfRange_NeedNonNegNum);
             }
 
             if (dest.Length - index < Count)
@@ -243,7 +257,7 @@ namespace System.Collections.Specialized
         //
 
         /// <devdoc>
-        ///    <para>Adds an entry with the specified name and value into the 
+        ///    <para>Adds an entry with the specified name and value into the
         ///    <see cref='System.Collections.Specialized.NameValueCollection'/>.</para>
         /// </devdoc>
         public virtual void Add(String name, String value)
@@ -314,7 +328,7 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        ///    <para> Represents the entry with the specified key in the 
+        ///    <para> Represents the entry with the specified key in the
         ///    <see cref='System.Collections.Specialized.NameValueCollection'/>.</para>
         /// </devdoc>
         public String this[String name]
@@ -335,7 +349,7 @@ namespace System.Collections.Specialized
         //
 
         /// <devdoc>
-        ///    <para> 
+        ///    <para>
         ///       Gets the values at the specified index of the <see cref='System.Collections.Specialized.NameValueCollection'/> combined into one
         ///       comma-separated list.</para>
         /// </devdoc>

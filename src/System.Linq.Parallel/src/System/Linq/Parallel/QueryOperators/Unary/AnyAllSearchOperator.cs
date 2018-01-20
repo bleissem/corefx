@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,7 +9,8 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 
 namespace System.Linq.Parallel
@@ -23,12 +25,12 @@ namespace System.Linq.Parallel
     ///
     /// This uniformity is used to apply a general purpose algorithm. Both sentences above
     /// take the form of "returns XXX if the predicate for any element evaluates to XXX."
-    /// Therefore, we just parameterize on XXX, called the qualifciation below, and if we
+    /// Therefore, we just parameterize on XXX, called the qualification below, and if we
     /// ever find an occurrence of XXX in the input data source, we also return XXX. Otherwise,
     /// we return !XXX. Obviously, XXX in this case is a bool.
     ///
     /// This is a search algorithm. So once any single partition finds an element, it will
-    /// return so that execution can stop. This is done with a "cancelation" flag that is
+    /// return so that execution can stop. This is done with a "cancellation" flag that is
     /// polled by all parallel workers. The first worker to find an answer sets it, and all
     /// other workers notice it and quit as quickly as possible.
     /// </summary>
@@ -50,8 +52,8 @@ namespace System.Linq.Parallel
         internal AnyAllSearchOperator(IEnumerable<TInput> child, bool qualification, Func<TInput, bool> predicate)
             : base(child)
         {
-            Contract.Assert(child != null, "child data source cannot be null");
-            Contract.Assert(predicate != null, "need a predicate function");
+            Debug.Assert(child != null, "child data source cannot be null");
+            Debug.Assert(predicate != null, "need a predicate function");
 
             _qualification = qualification;
             _predicate = predicate;
@@ -101,7 +103,7 @@ namespace System.Linq.Parallel
         internal override void WrapPartitionedStream<TKey>(
             PartitionedStream<TInput, TKey> inputStream, IPartitionedStreamRecipient<bool> recipient, bool preferStriping, QuerySettings settings)
         {
-            // Create a shared cancelation variable and then return a possibly wrapped new enumerator.
+            // Create a shared cancellation variable and then return a possibly wrapped new enumerator.
             Shared<bool> resultFoundFlag = new Shared<bool>(false);
 
             int partitionCount = inputStream.PartitionCount;
@@ -122,9 +124,10 @@ namespace System.Linq.Parallel
         // Returns an enumerable that represents the query executing sequentially.
         //
 
+        [ExcludeFromCodeCoverage]
         internal override IEnumerable<bool> AsSequentialQuery(CancellationToken token)
         {
-            Contract.Assert(false, "This method should never be called as it is an ending operator with LimitsParallelism=false.");
+            Debug.Fail("This method should never be called as it is an ending operator with LimitsParallelism=false.");
             throw new NotSupportedException();
         }
 
@@ -140,7 +143,7 @@ namespace System.Linq.Parallel
 
         //---------------------------------------------------------------------------------------
         // This enumerator performs the search over its input data source. It also cancels peer
-        // enumerators when an answer was found, and polls this cancelation flag to stop when
+        // enumerators when an answer was found, and polls this cancellation flag to stop when
         // requested.
         //
 
@@ -161,9 +164,9 @@ namespace System.Linq.Parallel
                                                     Func<TInput, bool> predicate, int partitionIndex, Shared<bool> resultFoundFlag,
                                                     CancellationToken cancellationToken)
             {
-                Contract.Assert(source != null);
-                Contract.Assert(predicate != null);
-                Contract.Assert(resultFoundFlag != null);
+                Debug.Assert(source != null);
+                Debug.Assert(predicate != null);
+                Debug.Assert(resultFoundFlag != null);
 
                 _source = source;
                 _qualification = qualification;
@@ -181,7 +184,7 @@ namespace System.Linq.Parallel
 
             internal override bool MoveNext(ref bool currentElement, ref int currentKey)
             {
-                Contract.Assert(_predicate != null);
+                Debug.Assert(_predicate != null);
 
                 // Avoid enumerating if we've already found an answer.
                 if (_resultFoundFlag.Value)
@@ -206,7 +209,7 @@ namespace System.Linq.Parallel
 
                         if (_resultFoundFlag.Value)
                         {
-                            // If cancelation occurred, it's because a successful answer was found.
+                            // If cancellation occurred, it's because a successful answer was found.
                             return false;
                         }
 
@@ -229,7 +232,7 @@ namespace System.Linq.Parallel
 
             protected override void Dispose(bool disposing)
             {
-                Contract.Assert(_source != null);
+                Debug.Assert(_source != null);
                 _source.Dispose();
             }
         }

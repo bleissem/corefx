@@ -1,5 +1,6 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
 
@@ -26,10 +27,7 @@ namespace System.IO.Tests
         {
             var random = new Random(100);
             var data = new byte[length];
-            for (int index = 0; index < length; index++)
-            {
-                data[index] = (byte)random.Next();
-            }
+            random.NextBytes(data);
             return data;
         }
 
@@ -50,7 +48,7 @@ namespace System.IO.Tests
 
         private sealed class ArrayComparer<T> : IEqualityComparer<T[]>
         {
-            public static ArrayComparer<T> Instance = new ArrayComparer<T>();
+            public static readonly ArrayComparer<T> Instance = new ArrayComparer<T>();
 
             private ArrayComparer() // use the static Instance singleton
             {

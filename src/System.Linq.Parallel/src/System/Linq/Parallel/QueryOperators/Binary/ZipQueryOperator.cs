@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,7 +9,7 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 using System.Threading;
 
 namespace System.Linq.Parallel
@@ -43,7 +44,7 @@ namespace System.Linq.Parallel
         //
 
         internal ZipQueryOperator(
-            ParallelQuery<TLeftInput> leftChildSource, IEnumerable<TRightInput> rightChildSource,
+            ParallelQuery<TLeftInput> leftChildSource, ParallelQuery<TRightInput> rightChildSource,
             Func<TLeftInput, TRightInput, TOutput> resultSelector)
             : this(
                 QueryOperator<TLeftInput>.AsQueryOperator(leftChildSource),
@@ -57,7 +58,7 @@ namespace System.Linq.Parallel
             Func<TLeftInput, TRightInput, TOutput> resultSelector)
             : base(left.SpecifiedQuerySettings.Merge(right.SpecifiedQuerySettings))
         {
-            Contract.Assert(resultSelector != null, "operator cannot be null");
+            Debug.Assert(resultSelector != null, "operator cannot be null");
 
             _leftChild = left;
             _rightChild = right;
@@ -67,8 +68,8 @@ namespace System.Linq.Parallel
             OrdinalIndexState leftIndexState = _leftChild.OrdinalIndexState;
             OrdinalIndexState rightIndexState = _rightChild.OrdinalIndexState;
 
-            _prematureMergeLeft = leftIndexState != OrdinalIndexState.Indexible;
-            _prematureMergeRight = rightIndexState != OrdinalIndexState.Indexible;
+            _prematureMergeLeft = leftIndexState != OrdinalIndexState.Indexable;
+            _prematureMergeRight = rightIndexState != OrdinalIndexState.Indexable;
             _limitsParallelism =
                 (_prematureMergeLeft && leftIndexState != OrdinalIndexState.Shuffled)
                 || (_prematureMergeRight && rightIndexState != OrdinalIndexState.Shuffled);
@@ -133,7 +134,7 @@ namespace System.Linq.Parallel
         {
             get
             {
-                return OrdinalIndexState.Indexible;
+                return OrdinalIndexState.Indexable;
             }
         }
 
@@ -152,7 +153,7 @@ namespace System.Linq.Parallel
 
         //---------------------------------------------------------------------------------------
         // A special QueryResults class for the Zip operator. It requires that both of the child
-        // QueryResults are indexible.
+        // QueryResults are indexable.
         //
 
         internal class ZipQueryOperatorResults : QueryResults<TOutput>
@@ -174,8 +175,8 @@ namespace System.Linq.Parallel
                 _partitionCount = partitionCount;
                 _preferStriping = preferStriping;
 
-                Contract.Assert(_leftChildResults.IsIndexible);
-                Contract.Assert(_rightChildResults.IsIndexible);
+                Debug.Assert(_leftChildResults.IsIndexible);
+                Debug.Assert(_rightChildResults.IsIndexible);
 
                 _count = Math.Min(_leftChildResults.Count, _rightChildResults.Count);
             }

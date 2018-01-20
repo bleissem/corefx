@@ -1,48 +1,22 @@
-<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-
-  <PropertyGroup Condition="'$(TargetFrameworkVersion)' != '' and '$(TargetFrameworkProfile)' != ''">
-    <TargetingPortable>true</TargetingPortable>
+<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ErrorIfBuildToolsRestoredFromIndividualProject Condition="!Exists('$(ToolsDir)')">true</ErrorIfBuildToolsRestoredFromIndividualProject>
   </PropertyGroup>
 
-  <!-- Setup the default target for projects not already explicitly targeting portable -->
-  <PropertyGroup Condition="'$(TargetingPortable)' != 'true'">
-    <!-- Setting a default portable profile, although nothing should resolve from there as we want to use the pacakge refs -->
-    <TargetPlatformIdentifier>Portable</TargetPlatformIdentifier>
-    <TargetFrameworkIdentifier>.NETPortable</TargetFrameworkIdentifier>
-    <TargetFrameworkVersion Condition="'$(TargetFrameworkVersion)' == ''">v4.5</TargetFrameworkVersion>
-    <TargetFrameworkProfile Condition="'$(TargetFrameworkProfile)' == ''">Profile7</TargetFrameworkProfile>
-    <TargetFrameworkMonikerDisplayName>.NET Portable Subset</TargetFrameworkMonikerDisplayName>
-    <ImplicitlyExpandTargetFramework Condition="'$(ImplicitlyExpandTargetFramework)' == ''">false</ImplicitlyExpandTargetFramework>
+  <Import Project="..\dir.targets" />
 
-    <AssemblySearchPaths>
-      {HintPathFromItem};
-      $(OutDir);
-      {RawFileName};
-    </AssemblySearchPaths>
-    <!-- For our projects we don't want to resolve from the usual paths for now only hint paths and output directory 
-      {CandidateAssemblyFiles};
-      $(ReferencePath);
-      {TargetFrameworkDirectory};
-      {Registry:$(FrameworkRegistryBase),$(TargetFrameworkVersion),$(AssemblyFoldersSuffix)$(AssemblyFoldersExConditions)};
-    -->
-  </PropertyGroup>
+  <!-- Returns the assembly version of the project for consumption
+       by the NuGet package generation -->
+  <Target Name="GetAssemblyVersion"
+          Returns="$(AssemblyVersion)"/>
 
-  <!-- Need to add references to the mscorlib design-time facade for some old-style portable dependencies like xunit -->
-  <Target Name="AddDesignTimeFacadeReferences"
-      Condition="'$(TargetingPortable)' != 'true'"
-      BeforeTargets="ResolveReferences"
-      DependsOnTargets="GetReferenceAssemblyPaths"
-  >
-    <ItemGroup>
-      <PossibleTargetFrameworks Include="$(_TargetFrameworkDirectories)" />
-      <ReferencePath Include="%(PossibleTargetFrameworks.Identity)mscorlib.dll" />
-    </ItemGroup>
+  <!-- Returns the generated documentation file for consumption
+       by the NuGet package generation -->
+  <Target Name="GetDocumentationFile"
+          Returns="$(DocumentationFile)"/>
+
+  <Target Name="DumpTargets" BeforeTargets="ResolveProjectReferences">
+    <Message Text="DumpTargets> $(OutputPath), C=[$(Configuration)], CG=[$(ConfigurationGroup)], OG=[$(OSGroup)], TG=[$(TargetGroup)]" Importance="Low" />
   </Target>
-
-  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\Portable\$(TargetFrameworkVersion)\Microsoft.Portable.CSharp.targets" />
-
-  <Import Project="$(ToolsDir)packageresolve.targets" Condition="Exists('$(ToolsDir)packageresolve.targets')" />
-
-  <Import Project="$(ToolsDir)sign.targets" Condition="Exists('$(ToolsDir)sign.targets')" />
 
 </Project>

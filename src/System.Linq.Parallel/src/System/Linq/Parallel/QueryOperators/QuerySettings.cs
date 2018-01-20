@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -9,7 +10,7 @@
 
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 
 namespace System.Linq.Parallel
 {
@@ -37,7 +38,7 @@ namespace System.Linq.Parallel
             set
             {
                 _cancellationState = value;
-                Contract.Assert(_cancellationState != null);
+                Debug.Assert(_cancellationState != null);
             }
         }
 
@@ -90,7 +91,7 @@ namespace System.Linq.Parallel
             _mergeOptions = mergeOptions;
             _queryId = -1;
 
-            Contract.Assert(_cancellationState != null);
+            Debug.Assert(_cancellationState != null);
         }
 
         //-----------------------------------------------------------------------------------
@@ -142,11 +143,11 @@ namespace System.Linq.Parallel
             //Initialize a new QuerySettings structure and copy in the current settings.
             //Note: this has the very important effect of newing a fresh CancellationSettings, 
             //      and _not_ copying in the current internalCancellationSource or topLevelDisposedFlag which should not be 
-            //      propogated to internal query executions. (This affects SelectMany execution)
+            //      propagated to internal query executions. (This affects SelectMany execution)
             //      The fresh toplevel parameters are used instead.
             QuerySettings settings = new QuerySettings(TaskScheduler, DegreeOfParallelism, CancellationState.ExternalCancellationToken, ExecutionMode, MergeOptions);
 
-            Contract.Assert(topLevelCancellationTokenSource != null, "There should always be a top-level cancellation signal specified.");
+            Debug.Assert(topLevelCancellationTokenSource != null, "There should always be a top-level cancellation signal specified.");
             settings.CancellationState.InternalCancellationTokenSource = topLevelCancellationTokenSource;
 
             //Merge internal and external tokens to form the combined token
@@ -156,9 +157,9 @@ namespace System.Linq.Parallel
             // and copy in the topLevelDisposedFlag 
             settings.CancellationState.TopLevelDisposedFlag = topLevelDisposedFlag;
 
-            Contract.Assert(settings.CancellationState.InternalCancellationTokenSource != null);
-            Contract.Assert(settings.CancellationState.MergedCancellationToken.CanBeCanceled);
-            Contract.Assert(settings.CancellationState.TopLevelDisposedFlag != null);
+            Debug.Assert(settings.CancellationState.InternalCancellationTokenSource != null);
+            Debug.Assert(settings.CancellationState.MergedCancellationToken.CanBeCanceled);
+            Debug.Assert(settings.CancellationState.TopLevelDisposedFlag != null);
 
             // Finally, assign a query Id to the settings
             settings._queryId = PlinqEtwProvider.NextQueryId();
@@ -197,13 +198,13 @@ namespace System.Linq.Parallel
                 settings.MergeOptions = ParallelMergeOptions.AutoBuffered;
             }
 
-            Contract.Assert(settings.TaskScheduler != null);
-            Contract.Assert(settings.DegreeOfParallelism.HasValue);
-            Contract.Assert(settings.DegreeOfParallelism.Value >= 1 && settings.DegreeOfParallelism <= Scheduling.MAX_SUPPORTED_DOP);
-            Contract.Assert(settings.ExecutionMode != null);
-            Contract.Assert(settings.MergeOptions != null);
+            Debug.Assert(settings.TaskScheduler != null);
+            Debug.Assert(settings.DegreeOfParallelism.HasValue);
+            Debug.Assert(settings.DegreeOfParallelism.Value >= 1 && settings.DegreeOfParallelism <= Scheduling.MAX_SUPPORTED_DOP);
+            Debug.Assert(settings.ExecutionMode != null);
+            Debug.Assert(settings.MergeOptions != null);
 
-            Contract.Assert(settings.MergeOptions != ParallelMergeOptions.Default);
+            Debug.Assert(settings.MergeOptions != ParallelMergeOptions.Default);
 
             return settings;
         }

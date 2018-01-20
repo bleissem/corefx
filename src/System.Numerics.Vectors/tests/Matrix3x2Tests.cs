@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Runtime.InteropServices;
 using Xunit;
@@ -521,9 +522,9 @@ namespace System.Numerics.Tests
         public void Matrix3x2GetHashCodeTest()
         {
             Matrix3x2 target = GenerateMatrixNumberFrom1To6();
-            int expected = target.M11.GetHashCode() + target.M12.GetHashCode() +
-                            target.M21.GetHashCode() + target.M22.GetHashCode() +
-                            target.M31.GetHashCode() + target.M32.GetHashCode();
+            int expected = unchecked(target.M11.GetHashCode() + target.M12.GetHashCode() +
+                                     target.M21.GetHashCode() + target.M22.GetHashCode() +
+                                     target.M31.GetHashCode() + target.M32.GetHashCode());
             int actual;
 
             actual = target.GetHashCode();
@@ -782,7 +783,7 @@ namespace System.Numerics.Tests
             Matrix3x2 a = GenerateTestMatrix();
             Matrix3x2 b = a;
 
-            // Transfomed vector that has same semantics of property must be same.
+            // Transformed vector that has same semantics of property must be same.
             Vector2 val = new Vector2(a.M31, a.M32);
             Assert.Equal(val, a.Translation);
 
@@ -1011,16 +1012,20 @@ namespace System.Numerics.Tests
         [Fact]
         public unsafe void Matrix3x2FieldOffsetTest()
         {
-            Matrix3x2* ptr = (Matrix3x2*)0;
+            Matrix3x2 mat = new Matrix3x2();
+            float* basePtr = &mat.M11; // Take address of first element
+            Matrix3x2* matPtr = &mat; // Take address of whole matrix
 
-            Assert.Equal(new IntPtr(0), new IntPtr(&ptr->M11));
-            Assert.Equal(new IntPtr(4), new IntPtr(&ptr->M12));
+            Assert.Equal(new IntPtr(basePtr), new IntPtr(matPtr));
 
-            Assert.Equal(new IntPtr(8), new IntPtr(&ptr->M21));
-            Assert.Equal(new IntPtr(12), new IntPtr(&ptr->M22));
+            Assert.Equal(new IntPtr(basePtr + 0), new IntPtr(&mat.M11));
+            Assert.Equal(new IntPtr(basePtr + 1), new IntPtr(&mat.M12));
 
-            Assert.Equal(new IntPtr(16), new IntPtr(&ptr->M31));
-            Assert.Equal(new IntPtr(20), new IntPtr(&ptr->M32));
+            Assert.Equal(new IntPtr(basePtr + 2), new IntPtr(&mat.M21));
+            Assert.Equal(new IntPtr(basePtr + 3), new IntPtr(&mat.M22));
+
+            Assert.Equal(new IntPtr(basePtr + 4), new IntPtr(&mat.M31));
+            Assert.Equal(new IntPtr(basePtr + 5), new IntPtr(&mat.M32));
         }
     }
 }

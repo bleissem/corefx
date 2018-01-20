@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -9,7 +10,7 @@
 
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 
 namespace System.Linq.Parallel
 {
@@ -45,9 +46,9 @@ namespace System.Linq.Parallel
             Shared<TInputOutput[]> results, SortHelper<TInputOutput> sortHelper) :
             base(taskIndex, groupState)
         {
-            Contract.Requires(groupState != null);
-            Contract.Requires(results != null);
-            Contract.Requires(sortHelper != null);
+            Debug.Assert(groupState != null);
+            Debug.Assert(results != null);
+            Debug.Assert(sortHelper != null);
 
             _results = results;
             _sortHelper = sortHelper;
@@ -71,10 +72,10 @@ namespace System.Linq.Parallel
             QueryTaskGroupState groupState, PartitionedStream<TInputOutput, TKey> partitions,
             Shared<TInputOutput[]> results, TaskScheduler taskScheduler)
         {
-            Contract.Requires(groupState != null);
-            Contract.Requires(partitions != null);
-            Contract.Requires(results != null);
-            Contract.Requires(results.Value == null);
+            Debug.Assert(groupState != null);
+            Debug.Assert(partitions != null);
+            Debug.Assert(results != null);
+            Debug.Assert(results.Value == null);
 
             // Determine how many async tasks to create.
             int maxToRunInParallel = partitions.PartitionCount - 1;
@@ -128,7 +129,7 @@ namespace System.Linq.Parallel
 
         protected override void SpoolingWork()
         {
-            Contract.Assert(_sortHelper != null);
+            Debug.Assert(_sortHelper != null);
 
             // This task must perform a sort just prior to handing data to the merge.
             // We just defer to a sort helper object for this task.
@@ -140,7 +141,7 @@ namespace System.Linq.Parallel
                 // By this point, the results have been sorted, so we just publish a reference to the array.
                 if (_taskIndex == 0)
                 {
-                    Contract.Assert(sortedOutput != null);
+                    Debug.Assert(sortedOutput != null);
                     _results.Value = sortedOutput;
                 }
             }

@@ -1,8 +1,8 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using Microsoft.Win32.SafeHandles;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Security;
 
@@ -16,26 +16,22 @@ namespace System.IO.Pipes
         private SafePipeHandle _clientHandle;
         private bool _clientHandleExposed;
 
-        [SecuritySafeCritical]
         public AnonymousPipeServerStream()
             : this(PipeDirection.Out, HandleInheritability.None, 0)
         {
         }
 
-        [SecuritySafeCritical]
         public AnonymousPipeServerStream(PipeDirection direction)
             : this(direction, HandleInheritability.None, 0)
         {
         }
 
-        [SecuritySafeCritical]
         public AnonymousPipeServerStream(PipeDirection direction, HandleInheritability inheritability)
             : this(direction, inheritability, 0)
         { 
         }
 
         // Create an AnonymousPipeServerStream from two existing pipe handles.
-        [SecuritySafeCritical]
         public AnonymousPipeServerStream(PipeDirection direction, SafePipeHandle serverSafePipeHandle, SafePipeHandle clientSafePipeHandle)
             : base(direction, 0)
         {
@@ -45,19 +41,19 @@ namespace System.IO.Pipes
             }
             if (serverSafePipeHandle == null)
             {
-                throw new ArgumentNullException("serverSafePipeHandle");
+                throw new ArgumentNullException(nameof(serverSafePipeHandle));
             }
             if (clientSafePipeHandle == null)
             {
-                throw new ArgumentNullException("clientSafePipeHandle");
+                throw new ArgumentNullException(nameof(clientSafePipeHandle));
             }
             if (serverSafePipeHandle.IsInvalid)
             {
-                throw new ArgumentException(SR.Argument_InvalidHandle, "serverSafePipeHandle");
+                throw new ArgumentException(SR.Argument_InvalidHandle, nameof(serverSafePipeHandle));
             }
             if (clientSafePipeHandle.IsInvalid)
             {
-                throw new ArgumentException(SR.Argument_InvalidHandle, "clientSafePipeHandle");
+                throw new ArgumentException(SR.Argument_InvalidHandle, nameof(clientSafePipeHandle));
             }
             ValidateHandleIsPipe(serverSafePipeHandle);
             ValidateHandleIsPipe(clientSafePipeHandle);
@@ -71,7 +67,6 @@ namespace System.IO.Pipes
 
         // bufferSize is used as a suggestion; specify 0 to let OS decide
         // This constructor instantiates the PipeSecurity using just the inheritability flag
-        [SecuritySafeCritical]
         public AnonymousPipeServerStream(PipeDirection direction, HandleInheritability inheritability, int bufferSize)
             : base(direction, bufferSize)
         {
@@ -81,7 +76,7 @@ namespace System.IO.Pipes
             }
             if (inheritability < HandleInheritability.None || inheritability > HandleInheritability.Inheritable)
             {
-                throw new ArgumentOutOfRangeException("inheritability", SR.ArgumentOutOfRange_HandleInheritabilityNoneOrInheritable);
+                throw new ArgumentOutOfRangeException(nameof(inheritability), SR.ArgumentOutOfRange_HandleInheritabilityNoneOrInheritable);
             }
 
             Create(direction, inheritability, bufferSize);
@@ -94,17 +89,16 @@ namespace System.IO.Pipes
 
         // This method should exist until we add a first class way of passing handles between parent and child
         // processes. For now, people do it via command line arguments. 
-        [SecurityCritical]
         [SuppressMessage("Microsoft.Reliability", "CA2001:AvoidCallingProblematicMethods", MessageId = "System.Runtime.InteropServices.SafeHandle.DangerousGetHandle", Justification = "By design")]
         public String GetClientHandleAsString()
         {
             _clientHandleExposed = true;
+            GC.SuppressFinalize(_clientHandle);
             return _clientHandle.DangerousGetHandle().ToString();
         }
 
         public SafePipeHandle ClientSafePipeHandle
         {
-            [SecurityCritical]
             get
             {
                 _clientHandleExposed = true;
@@ -123,7 +117,6 @@ namespace System.IO.Pipes
         // 
         // Right now, this is the best signal to set the anonymous pipe as connected; if this is called, we
         // know the client has been passed the handle and so the connection is live.
-        [SecurityCritical]
         public void DisposeLocalCopyOfClientHandle()
         {
             if (_clientHandle != null && !_clientHandle.IsClosed)
@@ -132,7 +125,6 @@ namespace System.IO.Pipes
             }
         }
 
-        [SecurityCritical]
         protected override void Dispose(bool disposing)
         {
             try
@@ -152,20 +144,18 @@ namespace System.IO.Pipes
         // Anonymous pipes do not support message mode so there is no need to use the base version that P/Invokes here.
         public override PipeTransmissionMode TransmissionMode
         {
-            [SecurityCritical]
             get { return PipeTransmissionMode.Byte; }
         }
 
         public override PipeTransmissionMode ReadMode
         {
-            [SecurityCritical]
             set
             {
                 CheckPipePropertyOperations();
 
                 if (value < PipeTransmissionMode.Byte || value > PipeTransmissionMode.Message)
                 {
-                    throw new ArgumentOutOfRangeException("value", SR.ArgumentOutOfRange_TransmissionModeByteOrMsg);
+                    throw new ArgumentOutOfRangeException(nameof(value), SR.ArgumentOutOfRange_TransmissionModeByteOrMsg);
                 }
                 if (value == PipeTransmissionMode.Message)
                 {

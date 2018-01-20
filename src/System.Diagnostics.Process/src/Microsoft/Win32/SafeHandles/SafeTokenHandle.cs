@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 /*============================================================
 **
@@ -13,24 +14,26 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security;
 
 namespace Microsoft.Win32.SafeHandles
 {
-    [System.Security.SecurityCriticalAttribute]
     internal sealed class SafeTokenHandle : SafeHandle
     {
-        internal static SafeTokenHandle InvalidHandle = new SafeTokenHandle(IntPtr.Zero);
+        private const int DefaultInvalidHandleValue = 0;
 
-        internal SafeTokenHandle() : base(IntPtr.Zero, true) { }
+        internal static readonly SafeTokenHandle InvalidHandle = new SafeTokenHandle(new IntPtr(DefaultInvalidHandleValue));
+
+        internal SafeTokenHandle() : base(new IntPtr(DefaultInvalidHandleValue), true) { }
 
         internal SafeTokenHandle(IntPtr handle)
-            : base(IntPtr.Zero, true)
+            : base(new IntPtr(DefaultInvalidHandleValue), true)
         {
             SetHandle(handle);
         }
 
         public SafeTokenHandle(IntPtr handle, bool ownsHandle)
-            : base(IntPtr.Zero, ownsHandle)
+            : base(new IntPtr(DefaultInvalidHandleValue), ownsHandle)
         {
             SetHandle(handle);
         }
@@ -43,15 +46,12 @@ namespace Microsoft.Win32.SafeHandles
 
         public override bool IsInvalid
         {
-            [System.Security.SecurityCritical]
-            get
-            { return handle == new IntPtr(0) || handle == new IntPtr(-1); }
+            get { return handle == IntPtr.Zero || handle == new IntPtr(-1); }
         }
 
-        [System.Security.SecurityCritical]
-        override protected bool ReleaseHandle()
+        protected override bool ReleaseHandle()
         {
-            return Interop.mincore.CloseHandle(handle);
+            return Interop.Kernel32.CloseHandle(handle);
         }
     }
 }

@@ -1,17 +1,18 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
-using System.Diagnostics;
-using System.Collections;
 
 namespace System.Collections.Specialized
 {
     /// <devdoc>
     ///    <para>Represents a collection of strings.</para>
     /// </devdoc>
+    [Serializable]
+    [System.Runtime.CompilerServices.TypeForwardedFrom("System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089")]
     public class StringCollection : IList
     {
-        private readonly ArrayList _data = new ArrayList();
+        private readonly ArrayList data = new ArrayList(); // Do not rename (binary serialization)
 
         /// <devdoc>
         /// <para>Represents the entry at the specified index of the <see cref='System.Collections.Specialized.StringCollection'/>.</para>
@@ -20,23 +21,23 @@ namespace System.Collections.Specialized
         {
             get
             {
-                return ((string)_data[index]);
+                return ((string)data[index]);
             }
             set
             {
-                _data[index] = value;
+                data[index] = value;
             }
         }
 
         /// <devdoc>
-        ///    <para>Gets the number of strings in the 
+        ///    <para>Gets the number of strings in the
         ///    <see cref='System.Collections.Specialized.StringCollection'/> .</para>
         /// </devdoc>
         public int Count
         {
             get
             {
-                return _data.Count;
+                return data.Count;
             }
         }
 
@@ -58,12 +59,12 @@ namespace System.Collections.Specialized
 
 
         /// <devdoc>
-        ///    <para>Adds a string with the specified value to the 
+        ///    <para>Adds a string with the specified value to the
         ///    <see cref='System.Collections.Specialized.StringCollection'/> .</para>
         /// </devdoc>
         public int Add(string value)
         {
-            return _data.Add(value);
+            return data.Add(value);
         }
 
         /// <devdoc>
@@ -73,41 +74,41 @@ namespace System.Collections.Specialized
         {
             if (value == null)
             {
-                throw new ArgumentNullException("value");
+                throw new ArgumentNullException(nameof(value));
             }
-            _data.AddRange(value);
+            data.AddRange(value);
         }
 
         /// <devdoc>
-        ///    <para>Removes all the strings from the 
+        ///    <para>Removes all the strings from the
         ///    <see cref='System.Collections.Specialized.StringCollection'/> .</para>
         /// </devdoc>
         public void Clear()
         {
-            _data.Clear();
+            data.Clear();
         }
 
         /// <devdoc>
-        ///    <para>Gets a value indicating whether the 
-        ///    <see cref='System.Collections.Specialized.StringCollection'/> contains a string with the specified 
+        ///    <para>Gets a value indicating whether the
+        ///    <see cref='System.Collections.Specialized.StringCollection'/> contains a string with the specified
         ///       value.</para>
         /// </devdoc>
         public bool Contains(string value)
         {
-            return _data.Contains(value);
+            return data.Contains(value);
         }
 
         /// <devdoc>
-        /// <para>Copies the <see cref='System.Collections.Specialized.StringCollection'/> values to a one-dimensional <see cref='System.Array'/> instance at the 
+        /// <para>Copies the <see cref='System.Collections.Specialized.StringCollection'/> values to a one-dimensional <see cref='System.Array'/> instance at the
         ///    specified index.</para>
         /// </devdoc>
         public void CopyTo(string[] array, int index)
         {
-            _data.CopyTo(array, index);
+            data.CopyTo(array, index);
         }
 
         /// <devdoc>
-        ///    <para>Returns an enumerator that can iterate through 
+        ///    <para>Returns an enumerator that can iterate through
         ///       the <see cref='System.Collections.Specialized.StringCollection'/> .</para>
         /// </devdoc>
         public StringEnumerator GetEnumerator()
@@ -116,21 +117,21 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        ///    <para>Returns the index of the first occurrence of a string in 
+        ///    <para>Returns the index of the first occurrence of a string in
         ///       the <see cref='System.Collections.Specialized.StringCollection'/> .</para>
         /// </devdoc>
         public int IndexOf(string value)
         {
-            return _data.IndexOf(value);
+            return data.IndexOf(value);
         }
 
         /// <devdoc>
-        /// <para>Inserts a string into the <see cref='System.Collections.Specialized.StringCollection'/> at the specified 
+        /// <para>Inserts a string into the <see cref='System.Collections.Specialized.StringCollection'/> at the specified
         ///    index.</para>
         /// </devdoc>
         public void Insert(int index, string value)
         {
-            _data.Insert(index, value);
+            data.Insert(index, value);
         }
 
         /// <devdoc>
@@ -145,8 +146,8 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        ///    <para>Gets a value indicating whether access to the 
-        ///    <see cref='System.Collections.Specialized.StringCollection'/> 
+        ///    <para>Gets a value indicating whether access to the
+        ///    <see cref='System.Collections.Specialized.StringCollection'/>
         ///    is synchronized (thread-safe).</para>
         /// </devdoc>
         public bool IsSynchronized
@@ -158,12 +159,12 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        ///    <para> Removes a specific string from the 
+        ///    <para> Removes a specific string from the
         ///    <see cref='System.Collections.Specialized.StringCollection'/> .</para>
         /// </devdoc>
         public void Remove(string value)
         {
-            _data.Remove(value);
+            data.Remove(value);
         }
 
         /// <devdoc>
@@ -171,7 +172,7 @@ namespace System.Collections.Specialized
         /// </devdoc>
         public void RemoveAt(int index)
         {
-            _data.RemoveAt(index);
+            data.RemoveAt(index);
         }
 
         /// <devdoc>
@@ -181,7 +182,7 @@ namespace System.Collections.Specialized
         {
             get
             {
-                return _data.SyncRoot;
+                return data.SyncRoot;
             }
         }
 
@@ -225,12 +226,12 @@ namespace System.Collections.Specialized
 
         void ICollection.CopyTo(Array array, int index)
         {
-            _data.CopyTo(array, index);
+            data.CopyTo(array, index);
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return _data.GetEnumerator();
+            return data.GetEnumerator();
         }
     }
 
@@ -257,7 +258,7 @@ namespace System.Collections.Specialized
         {
             return _baseEnumerator.MoveNext();
         }
-        
+
         public void Reset()
         {
             _baseEnumerator.Reset();

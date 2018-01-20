@@ -1,5 +1,6 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Runtime.InteropServices;
 using Xunit;
@@ -24,7 +25,7 @@ namespace System.IO.Tests
     {
         private bool _isDisposed;
 
-        public unsafe TestSafeBuffer(int capacity) : base(true)
+        public TestSafeBuffer(int capacity) : base(true)
         {
             Assert.True(capacity >= 0);
             Initialize((ulong)capacity);
@@ -41,7 +42,7 @@ namespace System.IO.Tests
             }
         }
 
-        public unsafe TestSafeBuffer(byte[] seedData) : base(true)
+        public TestSafeBuffer(byte[] seedData) : base(true)
         {
             int capacity = seedData.Length;
             Initialize((ulong)capacity);
@@ -49,11 +50,10 @@ namespace System.IO.Tests
             {
                 IntPtr memory = Marshal.AllocHGlobal(capacity);
                 SetHandle(memory);
-                byte* bytes = (byte*)memory.ToPointer();
-                byte* currentByte = bytes;
-                for (int index = 0; index < capacity; index++)
+                byte* destination = (byte*)memory.ToPointer();
+                fixed (byte* source = seedData)
                 {
-                    *currentByte = seedData[index];
+                    Buffer.MemoryCopy(source, destination, capacity, capacity);
                 }
             }
         }
@@ -92,7 +92,7 @@ namespace System.IO.Tests
         [Fact]
         public static void WriteSafeBuffer()
         {
-            var length = 1000;
+            const int length = 1000;
             using (var buffer = new TestSafeBuffer(length))
             {
                 var stream = new UnmanagedMemoryStream(buffer, 0, (long)buffer.ByteLength, FileAccess.Write);
@@ -104,7 +104,7 @@ namespace System.IO.Tests
 
                 var memory = buffer.ToArray();
 
-                Assert.True(ArrayHelpers.Comparer<byte>().Equals(bytes, memory));
+                Assert.Equal(bytes, memory, ArrayHelpers.Comparer<byte>());
 
                 stream.Write(new byte[0], 0, 0);
             }
@@ -113,7 +113,7 @@ namespace System.IO.Tests
         [Fact]
         public static void ReadWriteByteSafeBuffer()
         {
-            var length = 1000;
+            const int length = 1000;
             using (var buffer = new TestSafeBuffer(length))
             {
                 var stream = new UnmanagedMemoryStream(buffer, 0, (long)buffer.ByteLength, FileAccess.ReadWrite);
@@ -133,7 +133,7 @@ namespace System.IO.Tests
                 }
 
                 var memory = buffer.ToArray();
-                Assert.True(ArrayHelpers.Comparer<byte>().Equals(bytes, memory));
+                Assert.Equal(bytes, memory, ArrayHelpers.Comparer<byte>());
             }
         }
     }

@@ -1,25 +1,27 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 /*
  * Ordered String/Object collection of name/value pairs with support for null key
  *
  * This class is intended to be used as a base class
- * 
+ *
  */
 
-using System.Collections;
-using System.Diagnostics.CodeAnalysis;
+#pragma warning disable 618 // obsolete types, namely IHashCodeProvider
+
 using System.Globalization;
+using System.Runtime.Serialization;
 
 namespace System.Collections.Specialized
 {
     /// <devdoc>
-    /// <para>Provides the <see langword='abstract '/>base class for a sorted collection of associated <see cref='System.String' qualify='true'/> keys 
+    /// <para>Provides the <see langword='abstract '/>base class for a sorted collection of associated <see cref='System.String' qualify='true'/> keys
     ///    and <see cref='System.Object' qualify='true'/> values that can be accessed either with the hash code of
     ///    the key or with the index.</para>
     /// </devdoc>
-    public abstract class NameObjectCollectionBase : ICollection
+    public abstract class NameObjectCollectionBase : ICollection, ISerializable, IDeserializationCallback
     {
         private bool _readOnly = false;
         private ArrayList _entriesArray;
@@ -51,8 +53,20 @@ namespace System.Collections.Specialized
             Reset(capacity);
         }
 
+        [Obsolete("Please use NameObjectCollectionBase(IEqualityComparer) instead.")]
+        protected NameObjectCollectionBase(IHashCodeProvider hashProvider, IComparer comparer) {
+            _keyComparer = new CompatibleComparer(hashProvider, comparer); 
+            Reset();
+        }
+
+        [Obsolete("Please use NameObjectCollectionBase(Int32, IEqualityComparer) instead.")]
+        protected NameObjectCollectionBase(int capacity, IHashCodeProvider hashProvider, IComparer comparer) {
+            _keyComparer = new CompatibleComparer(hashProvider, comparer); 
+            Reset(capacity);
+        }
+
         /// <devdoc>
-        /// <para>Creates an empty <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance with the specified 
+        /// <para>Creates an empty <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance with the specified
         ///    initial capacity and using the default case-insensitive hash code provider
         ///    and the default case-insensitive comparer.</para>
         /// </devdoc>
@@ -60,6 +74,21 @@ namespace System.Collections.Specialized
         {
             _keyComparer = s_defaultComparer;
             Reset(capacity);
+        }
+
+        protected NameObjectCollectionBase(SerializationInfo info, StreamingContext context)
+        {
+            throw new PlatformNotSupportedException();
+        }
+
+        public virtual void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            throw new PlatformNotSupportedException();
+        }
+
+        public virtual void OnDeserialization(object sender)
+        {
+            throw new PlatformNotSupportedException();
         }
 
         //
@@ -113,7 +142,7 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        /// <para>Gets a value indicating whether the <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance contains entries whose 
+        /// <para>Gets a value indicating whether the <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance contains entries whose
         ///    keys are not <see langword='null'/>.</para>
         /// </devdoc>
         protected bool BaseHasKeys()
@@ -126,7 +155,7 @@ namespace System.Collections.Specialized
         //
 
         /// <devdoc>
-        ///    <para>Adds an entry with the specified key and value into the 
+        ///    <para>Adds an entry with the specified key and value into the
         ///    <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance.</para>
         /// </devdoc>
         protected void BaseAdd(String name, Object value)
@@ -155,7 +184,7 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        ///    <para>Removes the entries with the specified key from the 
+        ///    <para>Removes the entries with the specified key from the
         ///    <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance.</para>
         /// </devdoc>
         protected void BaseRemove(String name)
@@ -192,7 +221,7 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        ///    <para> Removes the entry at the specified index of the 
+        ///    <para> Removes the entry at the specified index of the
         ///    <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance.</para>
         /// </devdoc>
         protected void BaseRemoveAt(int index)
@@ -235,7 +264,7 @@ namespace System.Collections.Specialized
         //
 
         /// <devdoc>
-        ///    <para>Gets the value of the first entry with the specified key from 
+        ///    <para>Gets the value of the first entry with the specified key from
         ///       the <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance.</para>
         /// </devdoc>
         protected Object BaseGet(String name)
@@ -245,7 +274,7 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        /// <para>Sets the value of the first entry with the specified key in the <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> 
+        /// <para>Sets the value of the first entry with the specified key in the <see cref='System.Collections.Specialized.NameObjectCollectionBase'/>
         /// instance, if found; otherwise, adds an entry with the specified key and value
         /// into the <see cref='System.Collections.Specialized.NameObjectCollectionBase'/>
         /// instance.</para>
@@ -272,7 +301,7 @@ namespace System.Collections.Specialized
         //
 
         /// <devdoc>
-        ///    <para>Gets the value of the entry at the specified index of 
+        ///    <para>Gets the value of the entry at the specified index of
         ///       the <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance.</para>
         /// </devdoc>
         protected Object BaseGet(int index)
@@ -282,8 +311,8 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        ///    <para>Gets the key of the entry at the specified index of the 
-        ///    <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> 
+        ///    <para>Gets the key of the entry at the specified index of the
+        ///    <see cref='System.Collections.Specialized.NameObjectCollectionBase'/>
         ///    instance.</para>
         /// </devdoc>
         protected String BaseGetKey(int index)
@@ -293,7 +322,7 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        ///    <para>Sets the value of the entry at the specified index of 
+        ///    <para>Sets the value of the entry at the specified index of
         ///       the <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance.</para>
         /// </devdoc>
         protected void BaseSet(int index, Object value)
@@ -333,17 +362,17 @@ namespace System.Collections.Specialized
         {
             if (array == null)
             {
-                throw new ArgumentNullException("array");
+                throw new ArgumentNullException(nameof(array));
             }
 
             if (array.Rank != 1)
             {
-                throw new ArgumentException(SR.Arg_MultiRank);
+                throw new ArgumentException(SR.Arg_MultiRank, nameof(array));
             }
 
             if (index < 0)
             {
-                throw new ArgumentOutOfRangeException("index", SR.Format(SR.IndexOutOfRange, index.ToString(CultureInfo.CurrentCulture)));
+                throw new ArgumentOutOfRangeException(nameof(index), index, SR.ArgumentOutOfRange_NeedNonNegNum);
             }
 
             if (array.Length - index < _entriesArray.Count)
@@ -377,7 +406,7 @@ namespace System.Collections.Specialized
         //
 
         /// <devdoc>
-        /// <para>Returns a <see cref='System.String' qualify='true'/> array containing all the keys in the 
+        /// <para>Returns a <see cref='System.String' qualify='true'/> array containing all the keys in the
         /// <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance.</para>
         /// </devdoc>
         protected String[] BaseGetAllKeys()
@@ -392,7 +421,7 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        /// <para>Returns an <see cref='System.Object' qualify='true'/> array containing all the values in the 
+        /// <para>Returns an <see cref='System.Object' qualify='true'/> array containing all the values in the
         /// <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance.</para>
         /// </devdoc>
         protected Object[] BaseGetAllValues()
@@ -407,7 +436,7 @@ namespace System.Collections.Specialized
         }
 
         /// <devdoc>
-        ///    <para>Returns an array of the specified type containing 
+        ///    <para>Returns an array of the specified type containing
         ///       all the values in the <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance.</para>
         /// </devdoc>
         protected object[] BaseGetAllValues(Type type)
@@ -415,7 +444,7 @@ namespace System.Collections.Specialized
             int n = _entriesArray.Count;
             if (type == null)
             {
-                throw new ArgumentNullException("type");
+                throw new ArgumentNullException(nameof(type));
             }
             object[] allValues = (object[])Array.CreateInstance(type, n);
 
@@ -428,11 +457,11 @@ namespace System.Collections.Specialized
         }
 
         //
-        // Keys propetry
+        // Keys property
         //
 
         /// <devdoc>
-        /// <para>Returns a <see cref='System.Collections.Specialized.NameObjectCollectionBase.KeysCollection'/> instance containing 
+        /// <para>Returns a <see cref='System.Collections.Specialized.NameObjectCollectionBase.KeysCollection'/> instance containing
         ///    all the keys in the <see cref='System.Collections.Specialized.NameObjectCollectionBase'/> instance.</para>
         /// </devdoc>
         public virtual KeysCollection Keys
@@ -558,7 +587,7 @@ namespace System.Collections.Specialized
             // ICollection implementation
 
             /// <devdoc>
-            ///    <para>Returns an enumerator that can iterate through the 
+            ///    <para>Returns an enumerator that can iterate through the
             ///    <see cref='System.Collections.Specialized.NameObjectCollectionBase.KeysCollection'/>.</para>
             /// </devdoc>
             public IEnumerator GetEnumerator()
@@ -581,17 +610,17 @@ namespace System.Collections.Specialized
             {
                 if (array == null)
                 {
-                    throw new ArgumentNullException("array");
+                    throw new ArgumentNullException(nameof(array));
                 }
 
                 if (array.Rank != 1)
                 {
-                    throw new ArgumentException(SR.Arg_MultiRank);
+                    throw new ArgumentException(SR.Arg_MultiRank, nameof(array));
                 }
 
                 if (index < 0)
                 {
-                    throw new ArgumentOutOfRangeException("index", SR.Format(SR.IndexOutOfRange, index.ToString(CultureInfo.CurrentCulture)));
+                    throw new ArgumentOutOfRangeException(nameof(index), index, SR.ArgumentOutOfRange_NeedNonNegNum);
                 }
 
                 if (array.Length - index < _coll.Count)

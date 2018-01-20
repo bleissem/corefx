@@ -1,5 +1,6 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 /* This file contains multiple namespace/class definitions used to test the namespace walking
  * capabilities of the namespace reader.
@@ -128,6 +129,28 @@ namespace SkipFirstOnce.Namespace
     { }
 
     public class Namespace
+    { }
+}
+
+// Same suffix shared by different namespaces
+namespace FxResources.Microsoft.CSharp
+{
+    public class FxResources
+    { }
+
+    public class Microsoft
+    { }
+
+    public class CSharp
+    { }
+}
+
+namespace Microsoft.CSharp
+{
+    public class Microsoft
+    { }
+
+    public class CSharp
     { }
 }
 

@@ -1,5 +1,6 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -55,10 +56,10 @@ namespace System.Threading.Tasks.Dataflow
         public BatchedJoinBlock(Int32 batchSize, GroupingDataflowBlockOptions dataflowBlockOptions)
         {
             // Validate arguments
-            if (batchSize < 1) throw new ArgumentOutOfRangeException("batchSize", Strings.ArgumentOutOfRange_GenericPositive);
-            if (dataflowBlockOptions == null) throw new ArgumentNullException("dataflowBlockOptions");
-            if (!dataflowBlockOptions.Greedy) throw new ArgumentException(Strings.Argument_NonGreedyNotSupported, "dataflowBlockOptions");
-            if (dataflowBlockOptions.BoundedCapacity != DataflowBlockOptions.Unbounded) throw new ArgumentException(Strings.Argument_BoundedCapacityNotSupported, "dataflowBlockOptions");
+            if (batchSize < 1) throw new ArgumentOutOfRangeException(nameof(batchSize), SR.ArgumentOutOfRange_GenericPositive);
+            if (dataflowBlockOptions == null) throw new ArgumentNullException(nameof(dataflowBlockOptions));
+            if (!dataflowBlockOptions.Greedy) throw new ArgumentException(SR.Argument_NonGreedyNotSupported, nameof(dataflowBlockOptions));
+            if (dataflowBlockOptions.BoundedCapacity != DataflowBlockOptions.Unbounded) throw new ArgumentException(SR.Argument_BoundedCapacityNotSupported, nameof(dataflowBlockOptions));
             Contract.EndContractBlock();
 
             // Store arguments
@@ -98,26 +99,18 @@ namespace System.Threading.Tasks.Dataflow
             // In those cases we need to fault the target half to drop its buffered messages and to release its 
             // reservations. This should not create an infinite loop, because all our implementations are designed
             // to handle multiple completion requests and to carry over only one.
-#if PRENET45
-            m_source.Completion.ContinueWith(completed =>
-            {
-                Contract.Assert(completed.IsFaulted, "The source must be faulted in order to trigger a target completion.");
-                (this as IDataflowBlock).Fault(completed.Exception);
-            }, CancellationToken.None, Common.GetContinuationOptions() | TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-#else
             _source.Completion.ContinueWith((completed, state) =>
             {
                 var thisBlock = ((BatchedJoinBlock<T1, T2>)state) as IDataflowBlock;
-                Contract.Assert(completed.IsFaulted, "The source must be faulted in order to trigger a target completion.");
+                Debug.Assert(completed.IsFaulted, "The source must be faulted in order to trigger a target completion.");
                 thisBlock.Fault(completed.Exception);
             }, this, CancellationToken.None, Common.GetContinuationOptions() | TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-#endif
 
             // Handle async cancellation requests by declining on the target
             Common.WireCancellationToComplete(
                 dataflowBlockOptions.CancellationToken, _source.Completion, state => ((BatchedJoinBlock<T1, T2>)state).CompleteEachTarget(), this);
 #if FEATURE_TRACING
-            var etwLog = DataflowEtwProvider.Log;
+            DataflowEtwProvider etwLog = DataflowEtwProvider.Log;
             if (etwLog.IsEnabled())
             {
                 etwLog.DataflowBlockCreated(this, dataflowBlockOptions);
@@ -134,72 +127,72 @@ namespace System.Threading.Tasks.Dataflow
         /// <summary>Gets a target that may be used to offer messages of the second type.</summary>
         public ITargetBlock<T2> Target2 { get { return _target2; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="LinkTo"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="LinkTo"]/*' />
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         public IDisposable LinkTo(ITargetBlock<Tuple<IList<T1>, IList<T2>>> target, DataflowLinkOptions linkOptions)
         {
             return _source.LinkTo(target, linkOptions);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceive"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceive"]/*' />
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         public Boolean TryReceive(Predicate<Tuple<IList<T1>, IList<T2>>> filter, out Tuple<IList<T1>, IList<T2>> item)
         {
             return _source.TryReceive(filter, out item);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceiveAll"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceiveAll"]/*' />
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         public bool TryReceiveAll(out IList<Tuple<IList<T1>, IList<T2>>> items) { return _source.TryReceiveAll(out items); }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="OutputCount"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="OutputCount"]/*' />
         public int OutputCount { get { return _source.OutputCount; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Completion"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Completion"]/*' />
         public Task Completion { get { return _source.Completion; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Complete"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Complete"]/*' />
         public void Complete()
         {
-            Contract.Assert(_target1 != null, "m_target1 not initialized");
-            Contract.Assert(_target2 != null, "m_target2 not initialized");
+            Debug.Assert(_target1 != null, "_target1 not initialized");
+            Debug.Assert(_target2 != null, "_target2 not initialized");
 
             _target1.Complete();
             _target2.Complete();
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Fault"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Fault"]/*' />
         void IDataflowBlock.Fault(Exception exception)
         {
-            if (exception == null) throw new ArgumentNullException("exception");
+            if (exception == null) throw new ArgumentNullException(nameof(exception));
             Contract.EndContractBlock();
 
-            Contract.Assert(_sharedResources != null, "m_sharedResources not initialized");
-            Contract.Assert(_sharedResources.m_incomingLock != null, "m_sharedResources.m_incomingLock not initialized");
-            Contract.Assert(_source != null, "m_source not initialized");
+            Debug.Assert(_sharedResources != null, "_sharedResources not initialized");
+            Debug.Assert(_sharedResources._incomingLock != null, "_sharedResources._incomingLock not initialized");
+            Debug.Assert(_source != null, "_source not initialized");
 
-            lock (_sharedResources.m_incomingLock)
+            lock (_sharedResources._incomingLock)
             {
-                if (!_sharedResources.m_decliningPermanently) _source.AddException(exception);
+                if (!_sharedResources._decliningPermanently) _source.AddException(exception);
             }
             Complete();
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ConsumeMessage"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ConsumeMessage"]/*' />
         Tuple<IList<T1>, IList<T2>> ISourceBlock<Tuple<IList<T1>, IList<T2>>>.ConsumeMessage(
             DataflowMessageHeader messageHeader, ITargetBlock<Tuple<IList<T1>, IList<T2>>> target, out Boolean messageConsumed)
         {
             return _source.ConsumeMessage(messageHeader, target, out messageConsumed);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReserveMessage"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReserveMessage"]/*' />
         bool ISourceBlock<Tuple<IList<T1>, IList<T2>>>.ReserveMessage(
             DataflowMessageHeader messageHeader, ITargetBlock<Tuple<IList<T1>, IList<T2>>> target)
         {
             return _source.ReserveMessage(messageHeader, target);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReleaseReservation"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReleaseReservation"]/*' />
         void ISourceBlock<Tuple<IList<T1>, IList<T2>>>.ReleaseReservation(
             DataflowMessageHeader messageHeader, ITargetBlock<Tuple<IList<T1>, IList<T2>>> target)
         {
@@ -218,7 +211,7 @@ namespace System.Threading.Tasks.Dataflow
         /// <summary>Gets the number of messages waiting to be processed.  This must only be used from the debugger as it avoids taking necessary locks.</summary>
         private int OutputCountForDebugger { get { return _source.GetDebuggingInformation().OutputCount; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="ToString"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="ToString"]/*' />
         public override string ToString() { return Common.GetNameForDebugger(this, _source.DataflowBlockOptions); }
 
         /// <summary>The data to display in the debugger display attribute.</summary>
@@ -248,7 +241,7 @@ namespace System.Threading.Tasks.Dataflow
             /// <param name="batchedJoinBlock">The batched join being viewed.</param>
             public DebugView(BatchedJoinBlock<T1, T2> batchedJoinBlock)
             {
-                Contract.Requires(batchedJoinBlock != null, "Need a block with which to construct the debug view.");
+                Debug.Assert(batchedJoinBlock != null, "Need a block with which to construct the debug view.");
                 _batchedJoinBlock = batchedJoinBlock;
                 _sourceDebuggingInformation = batchedJoinBlock._source.GetDebuggingInformation();
             }
@@ -256,9 +249,9 @@ namespace System.Threading.Tasks.Dataflow
             /// <summary>Gets the messages waiting to be received.</summary>
             public IEnumerable<Tuple<IList<T1>, IList<T2>>> OutputQueue { get { return _sourceDebuggingInformation.OutputQueue; } }
             /// <summary>Gets the number of batches created.</summary>
-            public long BatchesCreated { get { return _batchedJoinBlock._sharedResources.m_batchesCreated; } }
+            public long BatchesCreated { get { return _batchedJoinBlock._sharedResources._batchesCreated; } }
             /// <summary>Gets the number of items remaining to form a batch.</summary>
-            public int RemainingItemsForBatch { get { return _batchedJoinBlock._sharedResources.m_remainingItemsInBatch; } }
+            public int RemainingItemsForBatch { get { return _batchedJoinBlock._sharedResources._remainingItemsInBatch; } }
 
             /// <summary>Gets the size of the batches generated by this BatchedJoin.</summary>
             public Int32 BatchSize { get { return _batchedJoinBlock._batchSize; } }
@@ -324,12 +317,12 @@ namespace System.Threading.Tasks.Dataflow
         public BatchedJoinBlock(Int32 batchSize, GroupingDataflowBlockOptions dataflowBlockOptions)
         {
             // Validate arguments
-            if (batchSize < 1) throw new ArgumentOutOfRangeException("batchSize", Strings.ArgumentOutOfRange_GenericPositive);
-            if (dataflowBlockOptions == null) throw new ArgumentNullException("dataflowBlockOptions");
+            if (batchSize < 1) throw new ArgumentOutOfRangeException(nameof(batchSize), SR.ArgumentOutOfRange_GenericPositive);
+            if (dataflowBlockOptions == null) throw new ArgumentNullException(nameof(dataflowBlockOptions));
             if (!dataflowBlockOptions.Greedy ||
                 dataflowBlockOptions.BoundedCapacity != DataflowBlockOptions.Unbounded)
             {
-                throw new ArgumentException(Strings.Argument_NonGreedyNotSupported, "dataflowBlockOptions");
+                throw new ArgumentException(SR.Argument_NonGreedyNotSupported, nameof(dataflowBlockOptions));
             }
             Contract.EndContractBlock();
 
@@ -371,26 +364,18 @@ namespace System.Threading.Tasks.Dataflow
             // In those cases we need to fault the target half to drop its buffered messages and to release its 
             // reservations. This should not create an infinite loop, because all our implementations are designed
             // to handle multiple completion requests and to carry over only one.
-#if PRENET45
-            m_source.Completion.ContinueWith(completed =>
-            {
-                Contract.Assert(completed.IsFaulted, "The source must be faulted in order to trigger a target completion.");
-                (this as IDataflowBlock).Fault(completed.Exception);
-            }, CancellationToken.None, Common.GetContinuationOptions() | TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-#else
             _source.Completion.ContinueWith((completed, state) =>
             {
                 var thisBlock = ((BatchedJoinBlock<T1, T2, T3>)state) as IDataflowBlock;
-                Contract.Assert(completed.IsFaulted, "The source must be faulted in order to trigger a target completion.");
+                Debug.Assert(completed.IsFaulted, "The source must be faulted in order to trigger a target completion.");
                 thisBlock.Fault(completed.Exception);
             }, this, CancellationToken.None, Common.GetContinuationOptions() | TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-#endif
 
             // Handle async cancellation requests by declining on the target
             Common.WireCancellationToComplete(
                 dataflowBlockOptions.CancellationToken, _source.Completion, state => ((BatchedJoinBlock<T1, T2, T3>)state).CompleteEachTarget(), this);
 #if FEATURE_TRACING
-            var etwLog = DataflowEtwProvider.Log;
+            DataflowEtwProvider etwLog = DataflowEtwProvider.Log;
             if (etwLog.IsEnabled())
             {
                 etwLog.DataflowBlockCreated(this, dataflowBlockOptions);
@@ -410,73 +395,73 @@ namespace System.Threading.Tasks.Dataflow
         /// <summary>Gets a target that may be used to offer messages of the third type.</summary>
         public ITargetBlock<T3> Target3 { get { return _target3; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="LinkTo"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="LinkTo"]/*' />
         public IDisposable LinkTo(ITargetBlock<Tuple<IList<T1>, IList<T2>, IList<T3>>> target, DataflowLinkOptions linkOptions)
         {
             return _source.LinkTo(target, linkOptions);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceive"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceive"]/*' />
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         public Boolean TryReceive(Predicate<Tuple<IList<T1>, IList<T2>, IList<T3>>> filter, out Tuple<IList<T1>, IList<T2>, IList<T3>> item)
         {
             return _source.TryReceive(filter, out item);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceiveAll"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceiveAll"]/*' />
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         public bool TryReceiveAll(out IList<Tuple<IList<T1>, IList<T2>, IList<T3>>> items) { return _source.TryReceiveAll(out items); }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="OutputCount"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="OutputCount"]/*' />
         public int OutputCount { get { return _source.OutputCount; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Completion"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Completion"]/*' />
         public Task Completion { get { return _source.Completion; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Complete"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Complete"]/*' />
         public void Complete()
         {
-            Contract.Assert(_target1 != null, "m_target1 not initialized");
-            Contract.Assert(_target2 != null, "m_target2 not initialized");
-            Contract.Assert(_target3 != null, "m_target3 not initialized");
+            Debug.Assert(_target1 != null, "_target1 not initialized");
+            Debug.Assert(_target2 != null, "_target2 not initialized");
+            Debug.Assert(_target3 != null, "_target3 not initialized");
 
             _target1.Complete();
             _target2.Complete();
             _target3.Complete();
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Fault"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Fault"]/*' />
         void IDataflowBlock.Fault(Exception exception)
         {
-            if (exception == null) throw new ArgumentNullException("exception");
+            if (exception == null) throw new ArgumentNullException(nameof(exception));
             Contract.EndContractBlock();
 
-            Contract.Assert(_sharedResources != null, "m_sharedResources not initialized");
-            Contract.Assert(_sharedResources.m_incomingLock != null, "m_sharedResources.m_incomingLock not initialized");
-            Contract.Assert(_source != null, "m_source not initialized");
+            Debug.Assert(_sharedResources != null, "_sharedResources not initialized");
+            Debug.Assert(_sharedResources._incomingLock != null, "_sharedResources._incomingLock not initialized");
+            Debug.Assert(_source != null, "_source not initialized");
 
-            lock (_sharedResources.m_incomingLock)
+            lock (_sharedResources._incomingLock)
             {
-                if (!_sharedResources.m_decliningPermanently) _source.AddException(exception);
+                if (!_sharedResources._decliningPermanently) _source.AddException(exception);
             }
             Complete();
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ConsumeMessage"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ConsumeMessage"]/*' />
         Tuple<IList<T1>, IList<T2>, IList<T3>> ISourceBlock<Tuple<IList<T1>, IList<T2>, IList<T3>>>.ConsumeMessage(
             DataflowMessageHeader messageHeader, ITargetBlock<Tuple<IList<T1>, IList<T2>, IList<T3>>> target, out Boolean messageConsumed)
         {
             return _source.ConsumeMessage(messageHeader, target, out messageConsumed);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReserveMessage"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReserveMessage"]/*' />
         bool ISourceBlock<Tuple<IList<T1>, IList<T2>, IList<T3>>>.ReserveMessage(
             DataflowMessageHeader messageHeader, ITargetBlock<Tuple<IList<T1>, IList<T2>, IList<T3>>> target)
         {
             return _source.ReserveMessage(messageHeader, target);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReleaseReservation"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReleaseReservation"]/*' />
         void ISourceBlock<Tuple<IList<T1>, IList<T2>, IList<T3>>>.ReleaseReservation(
             DataflowMessageHeader messageHeader, ITargetBlock<Tuple<IList<T1>, IList<T2>, IList<T3>>> target)
         {
@@ -496,7 +481,7 @@ namespace System.Threading.Tasks.Dataflow
         /// <summary>Gets the number of messages waiting to be processed.  This must only be used from the debugger as it avoids taking necessary locks.</summary>
         private int OutputCountForDebugger { get { return _source.GetDebuggingInformation().OutputCount; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="ToString"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="ToString"]/*' />
         public override string ToString() { return Common.GetNameForDebugger(this, _source.DataflowBlockOptions); }
 
         /// <summary>The data to display in the debugger display attribute.</summary>
@@ -526,7 +511,7 @@ namespace System.Threading.Tasks.Dataflow
             /// <param name="batchedJoinBlock">The batched join being viewed.</param>
             public DebugView(BatchedJoinBlock<T1, T2, T3> batchedJoinBlock)
             {
-                Contract.Requires(batchedJoinBlock != null, "Need a block with which to construct the debug view.");
+                Debug.Assert(batchedJoinBlock != null, "Need a block with which to construct the debug view.");
                 _sourceDebuggingInformation = batchedJoinBlock._source.GetDebuggingInformation();
                 _batchedJoinBlock = batchedJoinBlock;
             }
@@ -534,9 +519,9 @@ namespace System.Threading.Tasks.Dataflow
             /// <summary>Gets the messages waiting to be received.</summary>
             public IEnumerable<Tuple<IList<T1>, IList<T2>, IList<T3>>> OutputQueue { get { return _sourceDebuggingInformation.OutputQueue; } }
             /// <summary>Gets the number of batches created.</summary>
-            public long BatchesCreated { get { return _batchedJoinBlock._sharedResources.m_batchesCreated; } }
+            public long BatchesCreated { get { return _batchedJoinBlock._sharedResources._batchesCreated; } }
             /// <summary>Gets the number of items remaining to form a batch.</summary>
-            public int RemainingItemsForBatch { get { return _batchedJoinBlock._sharedResources.m_remainingItemsInBatch; } }
+            public int RemainingItemsForBatch { get { return _batchedJoinBlock._sharedResources._remainingItemsInBatch; } }
 
             /// <summary>Gets the size of the batches generated by this BatchedJoin.</summary>
             public Int32 BatchSize { get { return _batchedJoinBlock._batchSize; } }
@@ -584,13 +569,13 @@ namespace System.Threading.Tasks.Dataflow.Internal
         /// <param name="sharedResources">The shared resources used by all targets associated with this batched join.</param>
         internal BatchedJoinBlockTarget(BatchedJoinBlockTargetSharedResources sharedResources)
         {
-            Contract.Requires(sharedResources != null, "Targets require a shared resources through which to communicate.");
+            Debug.Assert(sharedResources != null, "Targets require a shared resources through which to communicate.");
 
             // Store the shared resources, and register with it to let it know there's 
             // another target. This is done in a non-thread-safe manner and must be done 
             // during construction of the batched join instance.
             _sharedResources = sharedResources;
-            sharedResources.m_remainingAliveTargets++;
+            sharedResources._remainingAliveTargets++;
         }
 
         /// <summary>Gets the number of messages buffered in this target.</summary>
@@ -600,32 +585,32 @@ namespace System.Threading.Tasks.Dataflow.Internal
         /// <returns>The messages from the target.</returns>
         internal IList<T> GetAndEmptyMessages()
         {
-            Common.ContractAssertMonitorStatus(_sharedResources.m_incomingLock, held: true);
+            Common.ContractAssertMonitorStatus(_sharedResources._incomingLock, held: true);
 
-            var toReturn = _messages;
+            IList<T> toReturn = _messages;
             _messages = new List<T>();
             return toReturn;
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Targets/Member[@name="OfferMessage"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Targets/Member[@name="OfferMessage"]/*' />
         public DataflowMessageStatus OfferMessage(DataflowMessageHeader messageHeader, T messageValue, ISourceBlock<T> source, Boolean consumeToAccept)
         {
             // Validate arguments
-            if (!messageHeader.IsValid) throw new ArgumentException(Strings.Argument_InvalidMessageHeader, "messageHeader");
-            if (source == null && consumeToAccept) throw new ArgumentException(Strings.Argument_CantConsumeFromANullSource, "consumeToAccept");
+            if (!messageHeader.IsValid) throw new ArgumentException(SR.Argument_InvalidMessageHeader, nameof(messageHeader));
+            if (source == null && consumeToAccept) throw new ArgumentException(SR.Argument_CantConsumeFromANullSource, nameof(consumeToAccept));
             Contract.EndContractBlock();
 
-            lock (_sharedResources.m_incomingLock)
+            lock (_sharedResources._incomingLock)
             {
                 // If we've already stopped accepting messages, decline permanently
                 if (_decliningPermanently ||
-                    _sharedResources.m_decliningPermanently)
+                    _sharedResources._decliningPermanently)
                     return DataflowMessageStatus.DecliningPermanently;
 
                 // Consume the message from the source if necessary, and store the message
                 if (consumeToAccept)
                 {
-                    Contract.Assert(source != null, "We must have thrown if source == null && consumeToAccept == true.");
+                    Debug.Assert(source != null, "We must have thrown if source == null && consumeToAccept == true.");
 
                     bool consumed;
                     messageValue = source.ConsumeMessage(messageHeader, this, out consumed);
@@ -634,43 +619,43 @@ namespace System.Threading.Tasks.Dataflow.Internal
                 _messages.Add(messageValue);
 
                 // If this message makes a batch, notify the shared resources that a batch has been completed
-                if (--_sharedResources.m_remainingItemsInBatch == 0) _sharedResources.m_batchSizeReachedAction();
+                if (--_sharedResources._remainingItemsInBatch == 0) _sharedResources._batchSizeReachedAction();
 
                 return DataflowMessageStatus.Accepted;
             }
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Complete"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Complete"]/*' />
         public void Complete()
         {
-            lock (_sharedResources.m_incomingLock)
+            lock (_sharedResources._incomingLock)
             {
                 // If this is the first time Complete is being called,
                 // note that there's now one fewer targets receiving messages for the batched join.
                 if (!_decliningPermanently)
                 {
                     _decliningPermanently = true;
-                    if (--_sharedResources.m_remainingAliveTargets == 0) _sharedResources.m_allTargetsDecliningPermanentlyAction();
+                    if (--_sharedResources._remainingAliveTargets == 0) _sharedResources._allTargetsDecliningPermanentlyAction();
                 }
             }
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Fault"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Fault"]/*' />
         void IDataflowBlock.Fault(Exception exception)
         {
-            if (exception == null) throw new ArgumentNullException("exception");
+            if (exception == null) throw new ArgumentNullException(nameof(exception));
             Contract.EndContractBlock();
 
-            lock (_sharedResources.m_incomingLock)
+            lock (_sharedResources._incomingLock)
             {
-                if (!_decliningPermanently && !_sharedResources.m_decliningPermanently) _sharedResources.m_exceptionAction(exception);
+                if (!_decliningPermanently && !_sharedResources._decliningPermanently) _sharedResources._exceptionAction(exception);
             }
 
-            _sharedResources.m_completionAction();
+            _sharedResources._completionAction();
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Completion"]/*' />
-        Task IDataflowBlock.Completion { get { throw new NotSupportedException(Strings.NotSupported_MemberNotNeeded); } }
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Completion"]/*' />
+        Task IDataflowBlock.Completion { get { throw new NotSupportedException(SR.NotSupported_MemberNotNeeded); } }
 
         /// <summary>The data to display in the debugger display attribute.</summary>
         [SuppressMessage("Microsoft.Globalization", "CA1305:SpecifyIFormatProvider")]
@@ -696,7 +681,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
             /// <param name="batchedJoinBlockTarget">The batched join target being viewed.</param>
             public DebugView(BatchedJoinBlockTarget<T> batchedJoinBlockTarget)
             {
-                Contract.Requires(batchedJoinBlockTarget != null, "Need a block with which to construct the debug view.");
+                Debug.Assert(batchedJoinBlockTarget != null, "Need a block with which to construct the debug view.");
                 _batchedJoinBlockTarget = batchedJoinBlockTarget;
             }
 
@@ -708,7 +693,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
                 get
                 {
                     return _batchedJoinBlockTarget._decliningPermanently ||
-                        _batchedJoinBlockTarget._sharedResources.m_decliningPermanently;
+                        _batchedJoinBlockTarget._sharedResources._decliningPermanently;
                 }
             }
         }
@@ -719,7 +704,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
     {
         /// <summary>Initializes the shared resources.</summary>
         /// <param name="batchSize">The size of a batch to create.</param>
-        /// <param name="dataflowBlockOptions">The options used to configur the shared resources.  Assumed to be immutable.</param>
+        /// <param name="dataflowBlockOptions">The options used to configure the shared resources.  Assumed to be immutable.</param>
         /// <param name="batchSizeReachedAction">The action to invoke when a batch is completed.</param>
         /// <param name="allTargetsDecliningAction">The action to invoke when no more targets are accepting input.</param>
         /// <param name="exceptionAction">The action to invoke when an exception needs to be logged.</param>
@@ -729,20 +714,20 @@ namespace System.Threading.Tasks.Dataflow.Internal
             Action batchSizeReachedAction, Action allTargetsDecliningAction,
             Action<Exception> exceptionAction, Action completionAction)
         {
-            Contract.Assert(batchSize >= 1, "A positive batch size is required.");
-            Contract.Assert(batchSizeReachedAction != null, "Need an action to invoke for each batch.");
-            Contract.Assert(allTargetsDecliningAction != null, "Need an action to invoke when all targets have declined.");
+            Debug.Assert(batchSize >= 1, "A positive batch size is required.");
+            Debug.Assert(batchSizeReachedAction != null, "Need an action to invoke for each batch.");
+            Debug.Assert(allTargetsDecliningAction != null, "Need an action to invoke when all targets have declined.");
 
-            m_incomingLock = new object();
-            m_batchSize = batchSize;
+            _incomingLock = new object();
+            _batchSize = batchSize;
 
-            // m_remainingAliveTargets will be incremented when targets are added.
+            // _remainingAliveTargets will be incremented when targets are added.
             // They must be added during construction of the BatchedJoin<...>.
-            m_remainingAliveTargets = 0;
-            m_remainingItemsInBatch = batchSize;
+            _remainingAliveTargets = 0;
+            _remainingItemsInBatch = batchSize;
 
             // Configure what to do when batches are completed and/or all targets start declining
-            m_allTargetsDecliningPermanentlyAction = () =>
+            _allTargetsDecliningPermanentlyAction = () =>
             {
                 // Invoke the caller's action
                 allTargetsDecliningAction();
@@ -751,49 +736,49 @@ namespace System.Threading.Tasks.Dataflow.Internal
                 // be doing this anyway through each individual target's declining flag, 
                 // so setting it to true is just a precaution and is also helpful
                 // when onceOnly is true.
-                m_decliningPermanently = true;
+                _decliningPermanently = true;
             };
-            m_batchSizeReachedAction = () =>
+            _batchSizeReachedAction = () =>
             {
                 // Invoke the caller's action
                 batchSizeReachedAction();
-                m_batchesCreated++;
+                _batchesCreated++;
 
                 // If this batched join is meant to be used for only a single
                 // batch, invoke the completion logic.
-                if (m_batchesCreated >= dataflowBlockOptions.ActualMaxNumberOfGroups) m_allTargetsDecliningPermanentlyAction();
+                if (_batchesCreated >= dataflowBlockOptions.ActualMaxNumberOfGroups) _allTargetsDecliningPermanentlyAction();
 
                 // Otherwise, get ready for the next batch.
-                else m_remainingItemsInBatch = m_batchSize;
+                else _remainingItemsInBatch = _batchSize;
             };
-            m_exceptionAction = exceptionAction;
-            m_completionAction = completionAction;
+            _exceptionAction = exceptionAction;
+            _completionAction = completionAction;
         }
 
         /// <summary>
         /// A lock used to synchronize all incoming messages on all targets. It protects all of the rest 
         /// of the shared Resources's state and will be held while invoking the delegates.
         /// </summary>
-        internal readonly object m_incomingLock;
+        internal readonly object _incomingLock;
         /// <summary>The size of the batches to generate.</summary>
-        internal readonly int m_batchSize;
+        internal readonly int _batchSize;
 
         /// <summary>The action to invoke when enough elements have been accumulated to make a batch.</summary>
-        internal readonly Action m_batchSizeReachedAction;
+        internal readonly Action _batchSizeReachedAction;
         /// <summary>The action to invoke when all targets are declining further messages.</summary>
-        internal readonly Action m_allTargetsDecliningPermanentlyAction;
+        internal readonly Action _allTargetsDecliningPermanentlyAction;
         /// <summary>The action to invoke when an exception has to be logged.</summary>
-        internal readonly Action<Exception> m_exceptionAction;
+        internal readonly Action<Exception> _exceptionAction;
         /// <summary>The action to invoke when the owning block has to be completed.</summary>
-        internal readonly Action m_completionAction;
+        internal readonly Action _completionAction;
 
         /// <summary>The number of items remaining to form a batch.</summary>
-        internal int m_remainingItemsInBatch;
+        internal int _remainingItemsInBatch;
         /// <summary>The number of targets still alive (i.e. not declining all further messages).</summary>
-        internal int m_remainingAliveTargets;
+        internal int _remainingAliveTargets;
         /// <summary>Whether all targets should decline all further messages.</summary>
-        internal bool m_decliningPermanently;
+        internal bool _decliningPermanently;
         /// <summary>The number of batches created.</summary>
-        internal long m_batchesCreated;
+        internal long _batchesCreated;
     }
 }

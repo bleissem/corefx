@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,7 +9,7 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 using System.Threading;
 
 namespace System.Linq.Parallel
@@ -37,8 +38,8 @@ namespace System.Linq.Parallel
         internal WhereQueryOperator(IEnumerable<TInputOutput> child, Func<TInputOutput, bool> predicate)
             : base(child)
         {
-            Contract.Assert(child != null, "child data source cannot be null");
-            Contract.Assert(predicate != null, "need a filter function");
+            Debug.Assert(child != null, "child data source cannot be null");
+            Debug.Assert(predicate != null, "need a filter function");
 
             SetOrdinalIndexState(
                 ExchangeUtilities.Worse(Child.OrdinalIndexState, OrdinalIndexState.Increasing));
@@ -112,8 +113,8 @@ namespace System.Linq.Parallel
             internal WhereQueryOperatorEnumerator(QueryOperatorEnumerator<TInputOutput, TKey> source, Func<TInputOutput, bool> predicate,
                 CancellationToken cancellationToken)
             {
-                Contract.Assert(source != null);
-                Contract.Assert(predicate != null);
+                Debug.Assert(source != null);
+                Debug.Assert(predicate != null);
 
                 _source = source;
                 _predicate = predicate;
@@ -126,7 +127,7 @@ namespace System.Linq.Parallel
 
             internal override bool MoveNext(ref TInputOutput currentElement, ref TKey currentKey)
             {
-                Contract.Assert(_predicate != null, "expected a compiled operator");
+                Debug.Assert(_predicate != null, "expected a compiled operator");
 
                 // Iterate through the input until we reach the end of the sequence or find
                 // an element matching the predicate.
@@ -149,7 +150,7 @@ namespace System.Linq.Parallel
 
             protected override void Dispose(bool disposing)
             {
-                Contract.Assert(_source != null);
+                Debug.Assert(_source != null);
                 _source.Dispose();
             }
         }

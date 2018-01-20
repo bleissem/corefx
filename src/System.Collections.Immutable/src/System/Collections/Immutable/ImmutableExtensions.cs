@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -7,112 +8,28 @@ using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Reflection;
-using Validation;
 
 namespace System.Collections.Immutable
 {
     /// <summary>
     /// Extension methods for immutable types.
     /// </summary>
-    internal static class ImmutableExtensions
+    internal static partial class ImmutableExtensions
     {
-        /// <summary>
-        /// Tries to divine the number of elements in a sequence without actually enumerating each element.
-        /// </summary>
-        /// <typeparam name="T">The type of elements in the sequence.</typeparam>
-        /// <param name="sequence">The enumerable source.</param>
-        /// <param name="count">Receives the number of elements in the enumeration, if it could be determined.</param>
-        /// <returns><c>true</c> if the count could be determined; <c>false</c> otherwise.</returns>
-        internal static bool TryGetCount<T>(this IEnumerable<T> sequence, out int count)
+        internal static bool IsValueType<T>()
         {
-            return TryGetCount<T>((IEnumerable)sequence, out count);
-        }
-
-        /// <summary>
-        /// Tries to divine the number of elements in a sequence without actually enumerating each element.
-        /// </summary>
-        /// <typeparam name="T">The type of elements in the sequence.</typeparam>
-        /// <param name="sequence">The enumerable source.</param>
-        /// <param name="count">Receives the number of elements in the enumeration, if it could be determined.</param>
-        /// <returns><c>true</c> if the count could be determined; <c>false</c> otherwise.</returns>
-        internal static bool TryGetCount<T>(this IEnumerable sequence, out int count)
-        {
-            var collection = sequence as ICollection;
-            if (collection != null)
+            if (default(T) != null)
             {
-                count = collection.Count;
                 return true;
             }
 
-            var collectionOfT = sequence as ICollection<T>;
-            if (collectionOfT != null)
+            Type t = typeof(T);
+            if (t.IsConstructedGenericType && t.GetGenericTypeDefinition() == typeof(Nullable<>))
             {
-                count = collectionOfT.Count;
                 return true;
             }
 
-            var readOnlyCollection = sequence as IReadOnlyCollection<T>;
-            if (readOnlyCollection != null)
-            {
-                count = readOnlyCollection.Count;
-                return true;
-            }
-
-            count = 0;
             return false;
-        }
-
-        /// <summary>
-        /// Gets the number of elements in the specified sequence,
-        /// while guaranteeing that the sequence is only enumerated once
-        /// in total by this method and the caller.
-        /// </summary>
-        /// <typeparam name="T">The type of element in the collection.</typeparam>
-        /// <param name="sequence">The sequence.</param>
-        /// <returns>The number of elements in the sequence.</returns>
-        internal static int GetCount<T>(ref IEnumerable<T> sequence)
-        {
-            int count;
-            if (!sequence.TryGetCount(out count))
-            {
-                // We cannot predict the length of the sequence. We must walk the entire sequence
-                // to find the count. But avoid our caller also having to enumerate by capturing
-                // the enumeration in a snapshot and passing that back to the caller.
-                var list = sequence.ToList();
-                count = list.Count;
-                sequence = list;
-            }
-
-            return count;
-        }
-
-        /// <summary>
-        /// Gets a copy of a sequence as an array.
-        /// </summary>
-        /// <typeparam name="T">The type of element.</typeparam>
-        /// <param name="sequence">The sequence to be copied.</param>
-        /// <param name="count">The number of elements in the sequence.</param>
-        /// <returns>The array.</returns>
-        /// <remarks>
-        /// This is more efficient than the Enumerable.ToArray{T} extension method
-        /// because that only tries to cast the sequence to ICollection{T} to determine
-        /// the count before it falls back to reallocating arrays as it enumerates.
-        /// </remarks>
-        internal static T[] ToArray<T>(this IEnumerable<T> sequence, int count)
-        {
-            Requires.NotNull(sequence, "sequence");
-            Requires.Range(count >= 0, "count");
-
-            T[] array = new T[count];
-            int i = 0;
-            foreach (var item in sequence)
-            {
-                Requires.Argument(i < count);
-                array[i++] = item;
-            }
-
-            Requires.Argument(i == count);
-            return array;
         }
 
 #if EqualsStructurally
@@ -204,7 +121,7 @@ namespace System.Collections.Immutable
             }
             else
             {
-                // We have to fallback to doing it manually since the underlying collection
+                // We have to fall back to doing it manually since the underlying collection
                 // being compared isn't a (matching) generic type.
                 using (var enumerator = sequence1.GetEnumerator())
                 {
@@ -249,7 +166,7 @@ namespace System.Collections.Immutable
         /// <returns>An ordered collection.  May not be thread-safe.  Never null.</returns>
         internal static IOrderedCollection<T> AsOrderedCollection<T>(this IEnumerable<T> sequence)
         {
-            Requires.NotNull(sequence, "sequence");
+            Requires.NotNull(sequence, nameof(sequence));
             Contract.Ensures(Contract.Result<IOrderedCollection<T>>() != null);
 
             var orderedCollection = sequence as IOrderedCollection<T>;
@@ -270,10 +187,10 @@ namespace System.Collections.Immutable
         }
 
         /// <summary>
-        /// Clears the specified stack.  For empty stacks, it avoids the call to Clear, which
-        /// avoids a call into the runtime's implementation of Array.Clear, helping performance,
-        /// in particular around inlining.  Stack.Count typically gets inlined by today's JIT, while
-        /// stack.Clear and Array.Clear typically don't.
+        /// Clears the specified stack.  For empty stacks, it avoids the call to <see cref="Stack{T}.Clear"/>, which
+        /// avoids a call into the runtime's implementation of <see cref="Array.Clear"/>, helping performance,
+        /// in particular around inlining.  <see cref="Stack{T}.Count"/> typically gets inlined by today's JIT, while
+        /// <see cref="Stack{T}.Clear"/> and <see cref="Array.Clear"/> typically don't.
         /// </summary>
         /// <typeparam name="T">Specifies the type of data in the stack to be cleared.</typeparam>
         /// <param name="stack">The stack to clear.</param>
@@ -282,38 +199,6 @@ namespace System.Collections.Immutable
             if (stack.Count > 0)
             {
                 stack.Clear();
-            }
-        }
-
-        /// <summary>
-        /// Gets a non-disposable enumerable that can be used as the source for a C# foreach loop
-        /// that will not box the enumerator if it is of a particular type.
-        /// </summary>
-        /// <typeparam name="T">The type of value to be enumerated.</typeparam>
-        /// <typeparam name="TEnumerator">
-        /// The type of the Enumerator struct. This must NOT implement <see cref="IDisposable"/> (or <see cref="IEnumerator{T}"/>).
-        /// If it does, call <see cref="GetEnumerableDisposable{T, TEnumerator}"/> instead.
-        /// </typeparam>
-        /// <param name="enumerable">The collection to be enumerated.</param>
-        /// <returns>A struct that enumerates the collection.</returns>
-        internal static EnumeratorAdapter<T, TEnumerator> GetEnumerable<T, TEnumerator>(this IEnumerable<T> enumerable)
-            where TEnumerator : struct, IStrongEnumerator<T>
-        {
-            Requires.NotNull(enumerable, "enumerable");
-
-            // This debug-only check is sufficient to cause test failures to flag errors so they never get checked in.
-            Debug.Assert(!typeof(IDisposable).GetTypeInfo().IsAssignableFrom(typeof(TEnumerator).GetTypeInfo()), "The enumerator struct implements IDisposable. Call GetEnumerableDisposable instead.");
-
-            var strongEnumerable = enumerable as IStrongEnumerable<T, TEnumerator>;
-            if (strongEnumerable != null)
-            {
-                return new EnumeratorAdapter<T, TEnumerator>(strongEnumerable.GetEnumerator());
-            }
-            else
-            {
-                // Consider for future: we could add more special cases for common
-                // mutable collection types like List<T>+Enumerator and such.
-                return new EnumeratorAdapter<T, TEnumerator>(enumerable.GetEnumerator());
             }
         }
 
@@ -328,7 +213,7 @@ namespace System.Collections.Immutable
         internal static DisposableEnumeratorAdapter<T, TEnumerator> GetEnumerableDisposable<T, TEnumerator>(this IEnumerable<T> enumerable)
             where TEnumerator : struct, IStrongEnumerator<T>, IEnumerator<T>
         {
-            Requires.NotNull(enumerable, "enumerable");
+            Requires.NotNull(enumerable, nameof(enumerable));
 
             var strongEnumerable = enumerable as IStrongEnumerable<T, TEnumerator>;
             if (strongEnumerable != null)
@@ -344,7 +229,7 @@ namespace System.Collections.Immutable
         }
 
         /// <summary>
-        /// Wraps a List{T} as an ordered collection.
+        /// Wraps a <see cref="IList{T}"/> as an ordered collection.
         /// </summary>
         /// <typeparam name="T">The type of element in the collection.</typeparam>
         private class ListOfTWrapper<T> : IOrderedCollection<T>
@@ -355,12 +240,12 @@ namespace System.Collections.Immutable
             private readonly IList<T> _collection;
 
             /// <summary>
-            /// Initializes a new instance of the <see cref="ListOfTWrapper&lt;T&gt;"/> class.
+            /// Initializes a new instance of the <see cref="ListOfTWrapper{T}"/> class.
             /// </summary>
             /// <param name="collection">The collection.</param>
             internal ListOfTWrapper(IList<T> collection)
             {
-                Requires.NotNull(collection, "collection");
+                Requires.NotNull(collection, nameof(collection));
                 _collection = collection;
             }
 
@@ -384,7 +269,7 @@ namespace System.Collections.Immutable
             /// Returns an enumerator that iterates through the collection.
             /// </summary>
             /// <returns>
-            /// A <see cref="T:System.Collections.Generic.IEnumerator`1"/> that can be used to iterate through the collection.
+            /// A <see cref="IEnumerator{T}"/> that can be used to iterate through the collection.
             /// </returns>
             public IEnumerator<T> GetEnumerator()
             {
@@ -395,7 +280,7 @@ namespace System.Collections.Immutable
             /// Returns an enumerator that iterates through a collection.
             /// </summary>
             /// <returns>
-            /// An <see cref="T:System.Collections.IEnumerator"/> object that can be used to iterate through the collection.
+            /// An <see cref="IEnumerator"/> object that can be used to iterate through the collection.
             /// </returns>
             IEnumerator IEnumerable.GetEnumerator()
             {
@@ -404,7 +289,7 @@ namespace System.Collections.Immutable
         }
 
         /// <summary>
-        /// Wraps any IEnumerable as an ordered, indexable list.
+        /// Wraps any <see cref="IEnumerable{T}"/> as an ordered, indexable list.
         /// </summary>
         /// <typeparam name="T">The type of element in the collection.</typeparam>
         private class FallbackWrapper<T> : IOrderedCollection<T>
@@ -420,12 +305,12 @@ namespace System.Collections.Immutable
             private IList<T> _collection;
 
             /// <summary>
-            /// Initializes a new instance of the <see cref="FallbackWrapper&lt;T&gt;"/> class.
+            /// Initializes a new instance of the <see cref="FallbackWrapper{T}"/> class.
             /// </summary>
             /// <param name="sequence">The sequence.</param>
             internal FallbackWrapper(IEnumerable<T> sequence)
             {
-                Requires.NotNull(sequence, "sequence");
+                Requires.NotNull(sequence, nameof(sequence));
                 _sequence = sequence;
             }
 
@@ -471,7 +356,7 @@ namespace System.Collections.Immutable
             /// Returns an enumerator that iterates through the collection.
             /// </summary>
             /// <returns>
-            /// A <see cref="T:System.Collections.Generic.IEnumerator`1"/> that can be used to iterate through the collection.
+            /// A <see cref="IEnumerator{T}"/> that can be used to iterate through the collection.
             /// </returns>
             public IEnumerator<T> GetEnumerator()
             {
@@ -482,7 +367,7 @@ namespace System.Collections.Immutable
             /// Returns an enumerator that iterates through a collection.
             /// </summary>
             /// <returns>
-            /// An <see cref="T:System.Collections.IEnumerator"/> object that can be used to iterate through the collection.
+            /// An <see cref="IEnumerator"/> object that can be used to iterate through the collection.
             /// </returns>
             [ExcludeFromCodeCoverage]
             IEnumerator IEnumerable.GetEnumerator()

@@ -1,9 +1,10 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using Xunit;
-
-// TODO: add WriteAsync, Timeout, Flush, CopyTo tests
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.IO.Tests
 {
@@ -70,30 +71,33 @@ namespace System.IO.Tests
             {
                 UnmanagedMemoryStream stream = manager.Stream;
                 UmsTests.ReadWriteUmsInvariants(stream);
-                // TODO: uncomment once we run againts core CLR; currently type load issues with IOException
-                // Assert.Throws<IOException>(() => stream.SetLength(1001)); 
+                Assert.Throws<IOException>(() => stream.SetLength(1001)); 
                 Assert.Throws<ArgumentOutOfRangeException>(() => stream.SetLength(SByte.MinValue));
+
+                const long expectedLength = 500;
+                stream.Position = 501;
+                stream.SetLength(expectedLength);
+                Assert.Equal(expectedLength, stream.Length);
+                Assert.Equal(expectedLength, stream.Position);
             }
         }
 
         [Fact]
         public static void SeekTests()
         {
-            int length = 1000;
+            const int length = 1000;
             using (var manager = new UmsManager(FileAccess.ReadWrite, length))
             {
                 UnmanagedMemoryStream stream = manager.Stream;
                 UmsTests.ReadWriteUmsInvariants(stream);
 
-                // TODO: uncomment once we run againts core CLR; currently type load issues with IOException
-                //Assert.Throws<IOException>(() => stream.Seek(unchecked(Int32.MaxValue + 1), SeekOrigin.Begin)); 
-                //Assert.Throws<IOException>(() => stream.Seek(Int64.MinValue, SeekOrigin.End));
-                Assert.Throws<ArgumentException>(() => stream.Seek(0, (SeekOrigin)7)); // Invalid seek origin          
+                Assert.Throws<IOException>(() => stream.Seek(unchecked(Int32.MaxValue + 1), SeekOrigin.Begin));
+                Assert.Throws<IOException>(() => stream.Seek(Int64.MinValue, SeekOrigin.End));
+                AssertExtensions.Throws<ArgumentException>(null, () => stream.Seek(0, (SeekOrigin)7)); // Invalid seek origin
 
                 stream.Seek(10, SeekOrigin.Begin);
                 Assert.Equal(10, stream.Position);
 
-                /* TODO: uncomment once we run againts core CLR; currently type load issues with IOException
                 Assert.Throws<IOException>(() => stream.Seek(-1, SeekOrigin.Begin)); // An attempt was made to move the position before the beginning of the stream 
                 Assert.Equal(10, stream.Position);
 
@@ -102,7 +106,6 @@ namespace System.IO.Tests
 
                 Assert.Throws<IOException>(() => stream.Seek(-(stream.Length + 1), SeekOrigin.End)); //  "An attempt was made to move the position before the beginning of the stream."
                 Assert.Equal(10, stream.Position);
-                */
 
                 // Seek from SeekOrigin.Begin
                 stream.Seek(0, SeekOrigin.Begin);
@@ -173,12 +176,157 @@ namespace System.IO.Tests
                 Assert.Throws<ObjectDisposedException>(() => stream.Seek(0, SeekOrigin.Current));
                 Assert.Throws<ObjectDisposedException>(() => stream.Seek(0, SeekOrigin.End));
 
+                Assert.Throws<ObjectDisposedException>(() => stream.Flush());
+                Assert.Throws<ObjectDisposedException>(() => stream.FlushAsync(CancellationToken.None).GetAwaiter().GetResult());
+
                 byte[] buffer = ArrayHelpers.CreateByteArray(10);
                 Assert.Throws<ObjectDisposedException>(() => stream.Read(buffer, 0, buffer.Length));
+                Assert.Throws<ObjectDisposedException>(() => stream.ReadAsync(buffer, 0, buffer.Length).GetAwaiter().GetResult());
                 Assert.Throws<ObjectDisposedException>(() => stream.ReadByte());
 
                 Assert.Throws<ObjectDisposedException>(() => stream.WriteByte(0));
                 Assert.Throws<ObjectDisposedException>(() => stream.Write(buffer, 0, buffer.Length));
+                Assert.Throws<ObjectDisposedException>(() => stream.WriteAsync(buffer, 0, buffer.Length).GetAwaiter().GetResult());
+            }
+        }
+
+        [Fact]
+        public static void CopyToTest()
+        {
+            byte[] testData = ArrayHelpers.CreateByteArray(8192);
+
+            using (var manager = new UmsManager(FileAccess.Read, testData))
+            {
+                UnmanagedMemoryStream ums = manager.Stream;
+                UmsTests.ReadUmsInvariants(ums);
+                MemoryStream destination = new MemoryStream();
+
+                destination.Position = 0;
+                ums.CopyTo(destination);
+                Assert.Equal(testData, destination.ToArray());
+
+                destination.Position = 0;
+                ums.CopyTo(destination, 1);
+                Assert.Equal(testData, destination.ToArray());
+            }
+
+            // copy to disposed stream should throw
+            using (var manager = new UmsManager(FileAccess.Read, testData))
+            {
+                UnmanagedMemoryStream ums = manager.Stream;
+                UmsTests.ReadUmsInvariants(ums);
+
+                MemoryStream destination = new MemoryStream();
+                destination.Dispose();
+
+                Assert.Throws<ObjectDisposedException>(() => ums.CopyTo(destination));
+            }
+
+            // copy from disposed stream should throw
+            using (var manager = new UmsManager(FileAccess.Read, testData))
+            {
+                UnmanagedMemoryStream ums = manager.Stream;
+                UmsTests.ReadUmsInvariants(ums);
+                ums.Dispose();
+
+                MemoryStream destination = new MemoryStream();
+
+                Assert.Throws<ObjectDisposedException>(() => ums.CopyTo(destination));
+            }
+
+            // copying to non-writable stream should throw
+            using (var manager = new UmsManager(FileAccess.Read, testData))
+            {
+                UnmanagedMemoryStream ums = manager.Stream;
+                UmsTests.ReadUmsInvariants(ums);
+
+                MemoryStream destination = new MemoryStream(new byte[0], false);
+
+                Assert.Throws<NotSupportedException>(() => ums.CopyTo(destination));
+            }
+
+            // copying from non-readable stream should throw
+            using (var manager = new UmsManager(FileAccess.Write, testData))
+            {
+                UnmanagedMemoryStream ums = manager.Stream;
+                UmsTests.WriteUmsInvariants(ums);
+
+                MemoryStream destination = new MemoryStream(new byte[0], false);
+
+                Assert.Throws<NotSupportedException>(() => ums.CopyTo(destination));
+            }
+        }
+
+        [Fact]
+        public static async Task CopyToAsyncTest()
+        {
+            byte[] testData = ArrayHelpers.CreateByteArray(8192);
+
+            using (var manager = new UmsManager(FileAccess.Read, testData))
+            {
+                UnmanagedMemoryStream ums = manager.Stream;
+                UmsTests.ReadUmsInvariants(ums);
+                MemoryStream destination = new MemoryStream();
+
+                destination.Position = 0;
+                await ums.CopyToAsync(destination);
+                Assert.Equal(testData, destination.ToArray());
+
+                destination.Position = 0;
+                await ums.CopyToAsync(destination, 2);
+                Assert.Equal(testData, destination.ToArray());
+
+                destination.Position = 0;
+                await ums.CopyToAsync(destination, 0x1000, new CancellationTokenSource().Token);
+                Assert.Equal(testData, destination.ToArray());
+
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ums.CopyToAsync(destination, 0x1000, new CancellationToken(true)));
+            }
+
+            // copy to disposed stream should throw
+            using (var manager = new UmsManager(FileAccess.Read, testData))
+            {
+                UnmanagedMemoryStream ums = manager.Stream;
+                UmsTests.ReadUmsInvariants(ums);
+
+                MemoryStream destination = new MemoryStream();
+                destination.Dispose();
+
+                await Assert.ThrowsAsync<ObjectDisposedException>(() => ums.CopyToAsync(destination));
+            }
+
+            // copy from disposed stream should throw
+            using (var manager = new UmsManager(FileAccess.Read, testData))
+            {
+                UnmanagedMemoryStream ums = manager.Stream;
+                UmsTests.ReadUmsInvariants(ums);
+                ums.Dispose();
+
+                MemoryStream destination = new MemoryStream();
+
+                await Assert.ThrowsAsync<ObjectDisposedException>(() => ums.CopyToAsync(destination));
+            }
+
+            // copying to non-writable stream should throw
+            using (var manager = new UmsManager(FileAccess.Read, testData))
+            {
+                UnmanagedMemoryStream ums = manager.Stream;
+                UmsTests.ReadUmsInvariants(ums);
+
+                MemoryStream destination = new MemoryStream(new byte[0], false);
+
+                await Assert.ThrowsAsync<NotSupportedException>(() => ums.CopyToAsync(destination));
+            }
+
+            // copying from non-readable stream should throw
+            using (var manager = new UmsManager(FileAccess.Write, testData))
+            {
+                UnmanagedMemoryStream ums = manager.Stream;
+                UmsTests.WriteUmsInvariants(ums);
+
+                MemoryStream destination = new MemoryStream(new byte[0], false);
+
+                await Assert.ThrowsAsync<NotSupportedException>(() => ums.CopyToAsync(destination));
             }
         }
     }

@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System;
 using System.Collections;
@@ -7,40 +8,41 @@ using System.Security;
 using Microsoft.Win32;
 using System.Text;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using System.Runtime.Versioning;
-using System.Diagnostics.Contracts;
 
 namespace System.IO
 {
-    [ComVisible(true)]
-    public abstract class FileSystemInfo
+    public abstract partial class FileSystemInfo : MarshalByRefObject, ISerializable
     {
-        protected String FullPath;          // fully qualified path of the file or directory
-        protected String OriginalPath;      // path passed in by the user
-        private String _displayPath = "";   // path that can be displayed to the user
-        private IFileSystemObject _fileSystemObject;  // backing implementation
+        protected string FullPath;          // fully qualified path of the file or directory
+        protected string OriginalPath;      // path passed in by the user
+        private string _displayPath = "";   // path that can be displayed to the user
 
-        [System.Security.SecurityCritical]
         protected FileSystemInfo()
         {
         }
 
-        internal FileSystemInfo(IFileSystemObject fileSystemObject)
+        protected FileSystemInfo(SerializationInfo info, StreamingContext context)
         {
-            _fileSystemObject = fileSystemObject;
+            throw new PlatformNotSupportedException();
         }
 
-        // Full path of the direcory/file
-        public virtual String FullName
+        public virtual void GetObjectData(SerializationInfo info, StreamingContext context)
         {
-            [System.Security.SecuritySafeCritical]
+            throw new PlatformNotSupportedException();
+        }
+
+        // Full path of the directory/file
+        public virtual string FullName
+        {
             get
             {
                 return FullPath;
             }
         }
 
-        public String Extension
+        public string Extension
         {
             get
             {
@@ -51,30 +53,16 @@ namespace System.IO
                     char ch = FullPath[i];
                     if (ch == '.')
                         return FullPath.Substring(i, length - i);
-                    if (PathHelpers.IsDirectorySeparator(ch) || ch == Path.VolumeSeparatorChar)
+                    if (PathInternal.IsDirectorySeparator(ch) || ch == Path.VolumeSeparatorChar)
                         break;
                 }
-                return String.Empty;
-            }
-        }
-
-        // Lazy accessor for backing implementation
-        internal IFileSystemObject FileSystemObject
-        {
-            get
-            {
-                if (_fileSystemObject == null)
-                {
-                    _fileSystemObject = FileSystem.Current.GetFileSystemInfo(FullPath, this is DirectoryInfo);
-                }
-
-                return _fileSystemObject;
+                return string.Empty;
             }
         }
 
         // For files name of the file is returned, for directories the last directory in hierarchy is returned if possible,
         // otherwise the fully qualified name s returned
-        public abstract String Name
+        public abstract string Name
         {
             get;
         }
@@ -101,18 +89,16 @@ namespace System.IO
             }
         }
 
-        [ComVisible(false)]
         public DateTime CreationTimeUtc
         {
-            [System.Security.SecuritySafeCritical]
             get
             {
-                return FileSystemObject.CreationTime.UtcDateTime;
+                return CreationTimeCore.UtcDateTime;
             }
 
             set
             {
-                FileSystemObject.CreationTime = File.GetUtcDateTimeOffset(value);
+                CreationTimeCore = File.GetUtcDateTimeOffset(value);
             }
         }
 
@@ -130,18 +116,16 @@ namespace System.IO
             }
         }
 
-        [ComVisible(false)]
         public DateTime LastAccessTimeUtc
         {
-            [System.Security.SecuritySafeCritical]
             get
             {
-                return FileSystemObject.LastAccessTime.UtcDateTime;
+                return LastAccessTimeCore.UtcDateTime;
             }
 
             set
             {
-                FileSystemObject.LastAccessTime = File.GetUtcDateTimeOffset(value);
+                LastAccessTimeCore = File.GetUtcDateTimeOffset(value);
             }
         }
 
@@ -159,41 +143,20 @@ namespace System.IO
             }
         }
 
-        [ComVisible(false)]
         public DateTime LastWriteTimeUtc
         {
-            [System.Security.SecuritySafeCritical]
             get
             {
-                return FileSystemObject.LastWriteTime.UtcDateTime;
+                return LastWriteTimeCore.UtcDateTime;
             }
 
             set
             {
-                FileSystemObject.LastWriteTime = File.GetUtcDateTimeOffset(value);
+                LastWriteTimeCore = File.GetUtcDateTimeOffset(value);
             }
         }
 
-        public void Refresh()
-        {
-            FileSystemObject.Refresh();
-        }
-
-        public FileAttributes Attributes
-        {
-            [System.Security.SecuritySafeCritical]
-            get
-            {
-                return FileSystemObject.Attributes;
-            }
-            [System.Security.SecurityCritical] // auto-generated
-            set
-            {
-                FileSystemObject.Attributes = value;
-            }
-        }
-
-        internal String DisplayPath
+        internal string DisplayPath
         {
             get
             {
@@ -203,11 +166,6 @@ namespace System.IO
             {
                 _displayPath = value;
             }
-        }
-
-        internal void Invalidate()
-        {
-            _fileSystemObject = null;
         }
     }
 }

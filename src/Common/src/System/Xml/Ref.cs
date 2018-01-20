@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 namespace System.Xml
 {
@@ -10,11 +11,8 @@ namespace System.Xml
     {
         public static bool Equal(string strA, string strB)
         {
-#if DEBUG
-            if (((object)strA != (object)strB) && string.Equals(strA, strB))
-                System.Diagnostics.Debug.Assert(false, "Ref.Equal: Object comparison used for non-atomized string '" + strA + "'");
-#endif
-            return (object)strA == (object)strB;
+            // Active Issue: #2152
+            return strA == strB;
         }
 
         // Prevent typos. If someone uses Ref.Equals instead of Ref.Equal,

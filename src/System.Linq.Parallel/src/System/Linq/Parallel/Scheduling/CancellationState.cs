@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -40,13 +41,13 @@ namespace System.Linq.Parallel
             }
         }
 
-        // A shared boolean flag to track whether a query-opening-enumerator dispose has occured.
+        // A shared boolean flag to track whether a query-opening-enumerator dispose has occurred.
         internal Shared<bool> TopLevelDisposedFlag;
 
         internal CancellationState(CancellationToken externalCancellationToken)
         {
             ExternalCancellationToken = externalCancellationToken;
-            TopLevelDisposedFlag = new Shared<bool>(false); //it would always be initialised to false, so no harm doing it here and avoid #if around constructors.
+            TopLevelDisposedFlag = new Shared<bool>(false); //it would always be initialized to false, so no harm doing it here and avoid #if around constructors.
         }
 
         /// <summary>
@@ -70,14 +71,14 @@ namespace System.Linq.Parallel
         /// <summary>
         /// Throws an OCE if the merged token has been canceled.
         /// </summary>
-        /// <param name="token">A token to check for cancelation.</param>
+        /// <param name="token">A token to check for cancellation.</param>
         internal static void ThrowIfCanceled(CancellationToken token)
         {
             if (token.IsCancellationRequested)
                 throw new OperationCanceledException(token);
         }
 
-        // Test if external cancellation was requested and occured, and if so throw a standardize OCE with standardized message
+        // Test if external cancellation was requested and occurred, and if so throw a standardize OCE with standardized message
         internal static void ThrowWithStandardMessageIfCanceled(CancellationToken externalCancellationToken)
         {
             if (externalCancellationToken.IsCancellationRequested)

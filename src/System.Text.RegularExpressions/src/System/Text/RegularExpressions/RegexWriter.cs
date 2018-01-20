@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // This RegexWriter class is internal to the Regex package.
 // It builds a block of regular expression codes (RegexCode)
@@ -11,33 +12,32 @@
 // sequences of codes.
 //
 
-using System.Collections.Generic;
 using System.Collections;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace System.Text.RegularExpressions
 {
     internal sealed class RegexWriter
     {
-        internal int[] _intStack;
-        internal int _depth;
-        internal int[] _emitted;
-        internal int _curpos;
-        internal Dictionary<string, int> _stringhash;
-        internal List<String> _stringtable;
-        // not used! internal int         _stringcount;
-        internal bool _counting;
-        internal int _count;
-        internal int _trackcount;
-        internal Dictionary<Int32, Int32> _caps;
+        private int[] _intStack;
+        private int _depth;
+        private int[] _emitted;
+        private int _curpos;
+        private readonly Dictionary<string, int> _stringhash;
+        private readonly List<string> _stringtable;
+        private bool _counting;
+        private int _count;
+        private int _trackcount;
+        private Hashtable _caps;
 
-        internal const int BeforeChild = 64;
-        internal const int AfterChild = 128;
+        private const int BeforeChild = 64;
+        private const int AfterChild = 128;
 
-        /*
-         * This is the only function that should be called from outside.
-         * It takes a RegexTree and creates a corresponding RegexCode.
-         */
+        /// <summary>
+        /// This is the only function that should be called from outside.
+        /// It takes a RegexTree and creates a corresponding RegexCode.
+        /// </summary>
         internal static RegexCode Write(RegexTree t)
         {
             RegexWriter w = new RegexWriter();
@@ -52,74 +52,72 @@ namespace System.Text.RegularExpressions
             return retval;
         }
 
-        /*
-         * private constructor; can't be created outside
-         */
+        // Private constructor; can't be created outside
         private RegexWriter()
         {
             _intStack = new int[32];
             _emitted = new int[32];
             _stringhash = new Dictionary<string, int>();
-            _stringtable = new List<String>();
+            _stringtable = new List<string>();
         }
 
-        /*
-         * To avoid recursion, we use a simple integer stack.
-         * This is the push.
-         */
-        internal void PushInt(int I)
+        /// <summary>
+        /// To avoid recursion, we use a simple integer stack.
+        /// This is the push.
+        /// </summary>
+        private void PushInt(int i)
         {
             if (_depth >= _intStack.Length)
             {
                 int[] expanded = new int[_depth * 2];
 
-                System.Array.Copy(_intStack, 0, expanded, 0, _depth);
+                Array.Copy(_intStack, 0, expanded, 0, _depth);
 
                 _intStack = expanded;
             }
 
-            _intStack[_depth++] = I;
+            _intStack[_depth++] = i;
         }
 
-        /*
-         * True if the stack is empty.
-         */
-        internal bool EmptyStack()
+        /// <summary>
+        /// <c>true</c> if the stack is empty.
+        /// </summary>
+        private bool EmptyStack()
         {
             return _depth == 0;
         }
 
-        /*
-         * This is the pop.
-         */
-        internal int PopInt()
+        /// <summary>
+        /// This is the pop.
+        /// </summary>
+        private int PopInt()
         {
             return _intStack[--_depth];
         }
 
-        /*
-         * Returns the current position in the emitted code.
-         */
-        internal int CurPos()
+        /// <summary>
+        /// Returns the current position in the emitted code.
+        /// </summary>
+        private int CurPos()
         {
             return _curpos;
         }
 
-        /*
-         * Fixes up a jump instruction at the specified offset
-         * so that it jumps to the specified jumpDest.
-         */
-        internal void PatchJump(int Offset, int jumpDest)
+        /// <summary>
+        /// Fixes up a jump instruction at the specified offset
+        /// so that it jumps to the specified jumpDest.
+        /// </summary>
+        private void PatchJump(int offset, int jumpDest)
         {
-            _emitted[Offset + 1] = jumpDest;
+            _emitted[offset + 1] = jumpDest;
         }
 
-        /*
-         * Emits a zero-argument operation. Note that the emit
-         * functions all run in two modes: they can emit code, or
-         * they can just count the size of the code.
-         */
-        internal void Emit(int op)
+        /// <summary>
+        /// Emits a zero-argument operation. Note that the emit
+        /// functions all run in two modes: they can emit code, or
+        /// they can just count the size of the code.
+        /// </summary>
+        private void Emit(int op)
         {
             if (_counting)
             {
@@ -131,10 +129,10 @@ namespace System.Text.RegularExpressions
             _emitted[_curpos++] = op;
         }
 
-        /*
-         * Emits a one-argument operation.
-         */
-        internal void Emit(int op, int opd1)
+        /// <summary>
+        /// Emits a one-argument operation.
+        /// </summary>
+        private void Emit(int op, int opd1)
         {
             if (_counting)
             {
@@ -147,10 +145,10 @@ namespace System.Text.RegularExpressions
             _emitted[_curpos++] = opd1;
         }
 
-        /*
-         * Emits a two-argument operation.
-         */
-        internal void Emit(int op, int opd1, int opd2)
+        /// <summary>
+        /// Emits a two-argument operation.
+        /// </summary>
+        private void Emit(int op, int opd1, int opd2)
         {
             if (_counting)
             {
@@ -164,19 +162,19 @@ namespace System.Text.RegularExpressions
             _emitted[_curpos++] = opd2;
         }
 
-        /*
-         * Returns an index in the string table for a string;
-         * uses a hashtable to eliminate duplicates.
-         */
-        internal int StringCode(String str)
+        /// <summary>
+        /// Returns an index in the string table for a string;
+        /// uses a hashtable to eliminate duplicates.
+        /// </summary>
+        private int StringCode(string str)
         {
             if (_counting)
                 return 0;
 
             if (str == null)
-                str = String.Empty;
+                str = string.Empty;
 
-            Int32 i;
+            int i;
             if (!_stringhash.TryGetValue(str, out i))
             {
                 i = _stringtable.Count;
@@ -187,43 +185,35 @@ namespace System.Text.RegularExpressions
             return i;
         }
 
-        /*
-         * Just returns an exception; should be dead code
-         */
-        internal ArgumentException MakeException(String message)
-        {
-            return new ArgumentException(message);
-        }
-
-        /*
-         * When generating code on a regex that uses a sparse set
-         * of capture slots, we hash them to a dense set of indices
-         * for an array of capture slots. Instead of doing the hash
-         * at match time, it's done at compile time, here.
-         */
-        internal int MapCapnum(int capnum)
+        /// <summary>
+        /// When generating code on a regex that uses a sparse set
+        /// of capture slots, we hash them to a dense set of indices
+        /// for an array of capture slots. Instead of doing the hash
+        /// at match time, it's done at compile time, here.
+        /// </summary>
+        private int MapCapnum(int capnum)
         {
             if (capnum == -1)
                 return -1;
 
             if (_caps != null)
-                return _caps[capnum];
+                return (int)_caps[capnum];
             else
                 return capnum;
         }
 
-        /*
-         * The top level RegexCode generator. It does a depth-first walk
-         * through the tree and calls EmitFragment to emits code before
-         * and after each child of an interior node, and at each leaf.
-         *
-         * It runs two passes, first to count the size of the generated
-         * code, and second to generate the code.
-         *
-         * We should time it against the alternative, which is
-         * to just generate the code and grow the array as we go.
-         */
-        internal RegexCode RegexCodeFromRegexTree(RegexTree tree)
+        /// <summary>
+        /// The top level RegexCode generator. It does a depth-first walk
+        /// through the tree and calls EmitFragment to emits code before
+        /// and after each child of an interior node, and at each leaf.
+        ///
+        /// It runs two passes, first to count the size of the generated
+        /// code, and second to generate the code.
+        ///
+        /// We should time it against the alternative, which is
+        /// to just generate the code and grow the array as we go.
+        /// </summary>
+        private RegexCode RegexCodeFromRegexTree(RegexTree tree)
         {
             RegexNode curNode;
             int curChild;
@@ -271,7 +261,7 @@ namespace System.Text.RegularExpressions
                     {
                         EmitFragment(curNode._type | BeforeChild, curNode, curChild);
 
-                        curNode = (RegexNode)curNode._children[curChild];
+                        curNode = curNode._children[curChild];
                         PushInt(curChild);
                         curChild = 0;
                         continue;
@@ -312,12 +302,12 @@ namespace System.Text.RegularExpressions
             return new RegexCode(_emitted, _stringtable, _trackcount, _caps, capsize, bmPrefix, fcPrefix, anchors, rtl);
         }
 
-        /*
-         * The main RegexCode generator. It does a depth-first walk
-         * through the tree and calls EmitFragment to emits code before
-         * and after each child of an interior node, and at each leaf.
-         */
-        internal void EmitFragment(int nodetype, RegexNode node, int CurIndex)
+        /// <summary>
+        /// The main RegexCode generator. It does a depth-first walk
+        /// through the tree and calls EmitFragment to emits code before
+        /// and after each child of an interior node, and at each leaf.
+        /// </summary>
+        private void EmitFragment(int nodetype, RegexNode node, int curIndex)
         {
             int bits = 0;
 
@@ -337,7 +327,7 @@ namespace System.Text.RegularExpressions
                     break;
 
                 case RegexNode.Alternate | BeforeChild:
-                    if (CurIndex < node._children.Count - 1)
+                    if (curIndex < node._children.Count - 1)
                     {
                         PushInt(CurPos());
                         Emit(RegexCode.Lazybranch, 0);
@@ -346,7 +336,7 @@ namespace System.Text.RegularExpressions
 
                 case RegexNode.Alternate | AfterChild:
                     {
-                        if (CurIndex < node._children.Count - 1)
+                        if (curIndex < node._children.Count - 1)
                         {
                             int LBPos = PopInt();
                             PushInt(CurPos());
@@ -356,7 +346,7 @@ namespace System.Text.RegularExpressions
                         else
                         {
                             int I;
-                            for (I = 0; I < CurIndex; I++)
+                            for (I = 0; I < curIndex; I++)
                             {
                                 PatchJump(PopInt(), CurPos());
                             }
@@ -365,7 +355,7 @@ namespace System.Text.RegularExpressions
                     }
 
                 case RegexNode.Testref | BeforeChild:
-                    switch (CurIndex)
+                    switch (curIndex)
                     {
                         case 0:
                             Emit(RegexCode.Setjump);
@@ -378,7 +368,7 @@ namespace System.Text.RegularExpressions
                     break;
 
                 case RegexNode.Testref | AfterChild:
-                    switch (CurIndex)
+                    switch (curIndex)
                     {
                         case 0:
                             {
@@ -399,7 +389,7 @@ namespace System.Text.RegularExpressions
                     break;
 
                 case RegexNode.Testgroup | BeforeChild:
-                    switch (CurIndex)
+                    switch (curIndex)
                     {
                         case 0:
                             Emit(RegexCode.Setjump);
@@ -411,7 +401,7 @@ namespace System.Text.RegularExpressions
                     break;
 
                 case RegexNode.Testgroup | AfterChild:
-                    switch (CurIndex)
+                    switch (curIndex)
                     {
                         case 0:
                             Emit(RegexCode.Getmark);
@@ -438,7 +428,7 @@ namespace System.Text.RegularExpressions
                 case RegexNode.Loop | BeforeChild:
                 case RegexNode.Lazyloop | BeforeChild:
 
-                    if (node._n < Int32.MaxValue || node._m > 1)
+                    if (node._n < int.MaxValue || node._m > 1)
                         Emit(node._m == 0 ? RegexCode.Nullcount : RegexCode.Setcount, node._m == 0 ? 0 : 1 - node._m);
                     else
                         Emit(node._m == 0 ? RegexCode.Nullmark : RegexCode.Setmark);
@@ -457,8 +447,8 @@ namespace System.Text.RegularExpressions
                         int StartJumpPos = CurPos();
                         int Lazy = (nodetype - (RegexNode.Loop | AfterChild));
 
-                        if (node._n < Int32.MaxValue || node._m > 1)
-                            Emit(RegexCode.Branchcount + Lazy, PopInt(), node._n == Int32.MaxValue ? Int32.MaxValue : node._n - node._m);
+                        if (node._n < int.MaxValue || node._m > 1)
+                            Emit(RegexCode.Branchcount + Lazy, PopInt(), node._n == int.MaxValue ? int.MaxValue : node._n - node._m);
                         else
                             Emit(RegexCode.Branchmark + Lazy, PopInt());
 
@@ -519,7 +509,7 @@ namespace System.Text.RegularExpressions
 
                 case RegexNode.One:
                 case RegexNode.Notone:
-                    Emit(node._type | bits, (int)node._ch);
+                    Emit(node._type | bits, node._ch);
                     break;
 
                 case RegexNode.Notoneloop:
@@ -528,10 +518,10 @@ namespace System.Text.RegularExpressions
                 case RegexNode.Onelazy:
                     if (node._m > 0)
                         Emit(((node._type == RegexNode.Oneloop || node._type == RegexNode.Onelazy) ?
-                              RegexCode.Onerep : RegexCode.Notonerep) | bits, (int)node._ch, node._m);
+                              RegexCode.Onerep : RegexCode.Notonerep) | bits, node._ch, node._m);
                     if (node._n > node._m)
-                        Emit(node._type | bits, (int)node._ch, node._n == Int32.MaxValue ?
-                             Int32.MaxValue : node._n - node._m);
+                        Emit(node._type | bits, node._ch, node._n == int.MaxValue ?
+                             int.MaxValue : node._n - node._m);
                     break;
 
                 case RegexNode.Setloop:
@@ -540,7 +530,7 @@ namespace System.Text.RegularExpressions
                         Emit(RegexCode.Setrep | bits, StringCode(node._str), node._m);
                     if (node._n > node._m)
                         Emit(node._type | bits, StringCode(node._str),
-                             (node._n == Int32.MaxValue) ? Int32.MaxValue : node._n - node._m);
+                             (node._n == int.MaxValue) ? int.MaxValue : node._n - node._m);
                     break;
 
                 case RegexNode.Multi:
@@ -570,7 +560,7 @@ namespace System.Text.RegularExpressions
                     break;
 
                 default:
-                    throw MakeException(SR.Format(SR.UnexpectedOpcode, nodetype.ToString(CultureInfo.CurrentCulture)));
+                    throw new ArgumentException(SR.Format(SR.UnexpectedOpcode, nodetype.ToString(CultureInfo.CurrentCulture)));
             }
         }
     }

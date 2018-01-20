@@ -1,189 +1,187 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
-using Xunit;
-using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
+using System.Threading.Tasks;
+using Xunit;
 
-namespace Test
+namespace System.Linq.Parallel.Tests
 {
     public static class PlinqModesTests
     {
+        private static IEnumerable<Labeled<Action<UsedTaskTracker, ParallelQuery<int>>>> EasyUnorderedQueries(int count)
+        {
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("TakeWhile+Select+ToArray",
+                (verifier, query) => query.TakeWhile(x => true).Select(x => verifier.AddCurrent(x)).ToArray());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("TakeWhile+Select+foreach",
+                (verifier, query) => query.TakeWhile(x => true).Select(x => verifier.AddCurrent(x)).Enumerate());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Select+Take+ToArray",
+                (verifier, query) => query.Select(x => verifier.AddCurrent(x)).Take(count).ToArray());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Take+Select+foreach",
+                (verifier, query) => query.Take(count).Select(x => verifier.AddCurrent(x)).Enumerate());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Select+ElementAt",
+                (verifier, query) => query.Select(x => verifier.AddCurrent(x)).ElementAt(count - 1));
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Select+SelectMany+foreach",
+                (verifier, query) => query.Select(x => verifier.AddCurrent(x)).SelectMany((x, i) => Enumerable.Repeat(1, 2)).Enumerate());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("AsUnordered+Select+Select+foreach",
+                (verifier, query) => query.AsUnordered().Select(x => verifier.AddCurrent(x)).Select((x, i) => x).Enumerate());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("AsUnordered+Where+Select+First",
+                (verifier, query) => query.AsUnordered().Where(x => true).Select(x => verifier.AddCurrent(x)).First());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Select+OrderBy+ToArray",
+                (verifier, query) => query.Select(x => verifier.AddCurrent(x)).OrderBy(x => x).ToArray());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Select+OrderBy+foreach",
+                (verifier, query) => query.Select(x => verifier.AddCurrent(x)).OrderBy(x => x).Enumerate());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Where+Select+Take+ToArray",
+                (verifier, query) => query.Where(x => true).Select(x => verifier.AddCurrent(x)).Take(count).ToArray());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Where+Select+Take+foreach",
+                (verifier, query) => query.Where(x => true).Select(x => verifier.AddCurrent(x)).Take(count).Enumerate());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Select+TakeWhile+ToArray",
+                (verifier, query) => query.Select(x => verifier.AddCurrent(x)).TakeWhile(x => true).ToArray());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Select+TakeWhile+foreach",
+                (verifier, query) => query.Select(x => verifier.AddCurrent(x)).TakeWhile(x => true).Enumerate());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("OrderBy+Select+ElementAt",
+                (verifier, query) => query.OrderBy(x => x).Select(x => verifier.AddCurrent(x)).ElementAt(count - 1));
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("OrderBy+Select+foreach",
+                (verifier, query) => query.OrderBy(x => x).Select(x => verifier.AddCurrent(x)).Enumerate());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Where+Select+OrderBy+Take+foreach",
+                (verifier, query) => query.Where(x => true).Select(x => verifier.AddCurrent(x)).OrderBy(x => x).Take(count).Enumerate());
+        }
+
+        private static IEnumerable<Labeled<Action<UsedTaskTracker, ParallelQuery<int>>>> EasyOrderedQueries(int count)
+        {
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Where+Select+Concat(AsOrdered+Where)+ToList",
+                (verifier, query) => query.Where(x => true).Select(x => verifier.AddCurrent(x)).Concat(Enumerable.Range(0, count).AsParallel().AsOrdered().Where(x => true)).ToList());
+        }
+
+        private static IEnumerable<Labeled<Action<UsedTaskTracker, ParallelQuery<int>>>> HardQueries(int count)
+        {
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Select+Where+TakeWhile+ToArray",
+                (verifier, query) => query.Select(x => verifier.AddCurrent(x)).Where(x => true).TakeWhile((x, i) => true).ToArray());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Select+Where+TakeWhile+foreach",
+                (verifier, query) => query.Select(x => verifier.AddCurrent(x)).Where(x => true).TakeWhile((x, i) => true).Enumerate());
+            yield return Labeled.Label<Action<UsedTaskTracker, ParallelQuery<int>>>("Where+Select+ElementAt",
+                (verifier, query) => query.Where(x => true).Select(x => verifier.AddCurrent(x)).ElementAt(count - 1));
+        }
+
+        /// <summary>
+        /// Get a combination of partitioned data sources, degree of parallelism, expected resulting dop,
+        /// query to execute on the data source, and mode of execution.
+        /// </summary>
+        /// <param name="dop">A set of the desired degrees of parallelism to be employed.</param>
+        /// <returns>Entries for test data.
+        /// The first element is the Labeled{ParallelQuery{int}} data source,
+        /// the second is the desired dop,
+        /// the third is the expected resulting dop,
+        /// the fourth is the query to execute on the data source,
+        /// and the fifth is the execution mode.</returns>
+        public static IEnumerable<object[]> WithExecutionModeQueryData(int[] dops)
+        {
+            foreach (int dop in dops)
+            {
+                // Use data sources that have a fixed set of elements in each partition (no load balancing between the partitions).
+                // PLINQ will assign a Task to each partition, and no other task will process that partition. As a result, we can
+                // verify that we get a known number of tasks doing the processing. (This doesn't guarantee that such tasks are
+                // running in parallel, but it's "good enough".  If PLINQ's implementation is ever changed to proactively exit
+                // tasks and spawn replicas to continue the processing, ala Parallel.For*, this test will need to be updated.)
+                int count = 3 * dop; // 3 chosen arbitrarily as a small value; any positive value will do
+                var partitionedRanges = new Labeled<ParallelQuery<int>>[]
+                {
+                    Labeled.Label("ParallelEnumerable.Range", ParallelEnumerable.Range(0, count)),
+                    Labeled.Label("Partitioner.Create", Partitioner.Create(Enumerable.Range(0, count).ToArray(), loadBalance: false).AsParallel())
+                };
+
+                // For each source and mode, get both unordered and ordered queries that should easily parallelize for all execution modes
+                foreach (ParallelExecutionMode mode in new[] { ParallelExecutionMode.Default, ParallelExecutionMode.ForceParallelism })
+                {
+                    foreach (Labeled<ParallelQuery<int>> source in partitionedRanges)
+                    {
+                        foreach (var query in EasyUnorderedQueries(count))
+                            yield return new object[] { source, dop, dop, query, mode };
+
+                        foreach (var query in EasyOrderedQueries(count))
+                            yield return new object[] { source.Order(), dop, dop, query, mode };
+                    }
+                }
+
+                // For each source, get queries that are difficult to parallelize and thus only do so with ForceParallelism.
+                foreach (Labeled<ParallelQuery<int>> source in partitionedRanges)
+                {
+                    foreach (var query in HardQueries(count))
+                    {
+                        yield return new object[] { source, dop, dop, query, ParallelExecutionMode.ForceParallelism }; // should parallelize, thus expected DOP of > 1
+                        yield return new object[] { source, dop, 1, query, ParallelExecutionMode.Default }; // won't parallelize, thus expected DOP of 1
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Return execution mode combinations, for testing multiple calls to WithExecutionMode
+        /// </summary>
+        /// <returns>Entries for test data.
+        /// Both entries are a ParallelExecutionMode in a Cartesian join.</returns>
+        public static IEnumerable<object[]> AllExecutionModes_Multiple()
+        {
+            ParallelExecutionMode[] modes = new[] { ParallelExecutionMode.Default, ParallelExecutionMode.ForceParallelism };
+
+            foreach (ParallelMergeOptions first in modes)
+            {
+                foreach (ParallelMergeOptions second in modes)
+                {
+                    yield return new object[] { first, second };
+                }
+            }
+        }
+
+        // Check that some queries run in parallel by default, and some require forcing.
+        [Theory]
+        [MemberData(nameof(WithExecutionModeQueryData), new[] { 1, 4 })] // DOP of 1 to verify sequential and 4 to verify parallel
+        public static void WithExecutionMode(
+            Labeled<ParallelQuery<int>> labeled,
+            int requestedDop, int expectedDop,
+            Labeled<Action<UsedTaskTracker, ParallelQuery<int>>> operation,
+            ParallelExecutionMode mode)
+        {
+            UsedTaskTracker tracker = new UsedTaskTracker();
+            operation.Item(tracker, labeled.Item.WithDegreeOfParallelism(requestedDop).WithExecutionMode(mode));
+            Assert.Equal(expectedDop, tracker.UniqueTasksCount);
+        }
+
+        [Theory]
+        [MemberData(nameof(UnorderedSources.Ranges), new[] { 2 }, MemberType = typeof(UnorderedSources))]
+        public static void WithExecutionMode_ArgumentException(Labeled<ParallelQuery<int>> labeled, int count)
+        {
+            ParallelQuery<int> query = labeled.Item;
+            AssertExtensions.Throws<ArgumentException>(null, () => query.WithExecutionMode((ParallelExecutionMode)2));
+        }
+
+        [Theory]
+        [MemberData(nameof(AllExecutionModes_Multiple))]
+        public static void WithExecutionMode_Multiple(ParallelExecutionMode first, ParallelExecutionMode second)
+        {
+            Assert.Throws<InvalidOperationException>(() => ParallelEnumerable.Range(0, 1).WithExecutionMode(first).WithExecutionMode(second));
+        }
+
         [Fact]
-        [ActiveIssue(176)]
-        public static void RunPlinqModesTests()
+        public static void WithExecutionMode_ArgumentNullException()
         {
-            // I would assume that this gets the number of processors (ie. Environment.ProcessorCount)
-            // but since we are trying to exclude dependencies that aren't part of the contract, we
-            // can't use System.Runtime.Extensions.  So we had to remove this check.
-
-            //            if (SchedulingProxy.GetDefaultDegreeOfParallelism() == 1)
-            //            {
-            //                Console.WriteLine("   - Test does not apply to the DOP=1 case.");
-            //                return true;
-            //            }
-
-            Action<ParallelExecutionMode, Verifier>[] hardQueries = {
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .Select(x => verifier.Verify(x)).Where(x => true).TakeWhile((x,i) => true).ToArray(),
-
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .Select(x => verifier.Verify(x)).Where(x => true).TakeWhile((x,i) => true).Iterate(),
-
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .Where(x=>true).Select(x => verifier.Verify(x)).ElementAt(5),
-
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .Where(x=>true).Select((x,i) => verifier.Verify(x)).Iterate(),
-            };
-
-            Action<ParallelExecutionMode, Verifier>[] easyQueries = {
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .TakeWhile(x => true).Select(x => verifier.Verify(x)).ToArray(),
-
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .TakeWhile(x => true).Select(x => verifier.Verify(x)).Iterate(),
-
-                (mode,verifier) => Enumerable.Range(0, 1000).ToArray().AsParallel()
-                    .Select(x => verifier.Verify(x)).Take(100).WithExecutionMode(mode).ToArray(),
-
-                (mode,verifier) => Enumerable.Range(0, 1000).ToArray().AsParallel().WithExecutionMode(mode)
-                    .Take(100).Select(x => verifier.Verify(x)).Iterate(),
-
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .Select(x => verifier.Verify(x)).ElementAt(5),
-
-                (mode, verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .Select(x => verifier.Verify(x)).SelectMany((x,i) => Enumerable.Repeat(1, 2)).Iterate(),
-
-                (mode, verifier) => Enumerable.Range(0, 1000).AsParallel().WithExecutionMode(mode)
-                    .Select(x => verifier.Verify(x)).SelectMany((x,i) => Enumerable.Repeat(1, 2)).Iterate(),
-
-                (mode, verifier) => Enumerable.Range(0, 1000).AsParallel().WithExecutionMode(mode).AsUnordered()
-                    .Select(x => verifier.Verify(x)).Select((x,i) => x).Iterate(),
-
-                (mode, verifier) => Enumerable.Range(0, 1000).AsParallel().WithExecutionMode(mode).AsUnordered().Where(x => true).Select(x => verifier.Verify(x)).First(),
-
-                (mode, verifier) => Enumerable.Range(0, 1000).AsParallel().WithExecutionMode(mode)
-                    .Select(x => verifier.Verify(x)).OrderBy(x => x).ToArray(),
-
-                (mode, verifier) => Enumerable.Range(0, 1000).AsParallel().WithExecutionMode(mode)
-                    .Select(x => verifier.Verify(x)).OrderBy(x => x).Iterate(),
-
-                (mode, verifier) => Enumerable.Range(0, 1000).AsParallel().AsOrdered().WithExecutionMode(mode)
-                    .Where(x => true).Select(x => verifier.Verify(x))
-                    .Concat(Enumerable.Range(0, 1000).AsParallel().AsOrdered().Where(x => true))
-                    .ToList(),
-
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .Where(x => true).Select(x => verifier.Verify(x)).Take(100).ToArray(),
-
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .Where(x => true).Select(x => verifier.Verify(x)).Take(100).Iterate(),
-
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .Select(x => verifier.Verify(x)).TakeWhile(x => true).ToArray(),
-
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .Select(x => verifier.Verify(x)).TakeWhile(x => true).Iterate(),
-
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000)
-                    .OrderBy(x=>x).Select(x => verifier.Verify(x)).WithExecutionMode(mode).ElementAt(5),
-
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .OrderBy(x=>x).Select((x,i) => verifier.Verify(x)).Iterate(),
-
-                (mode,verifier) => ParallelEnumerable.Range(0, 1000).WithExecutionMode(mode)
-                    .Where(x => true).Select(x => verifier.Verify(x)).OrderBy(x=>x).Take(10000).Iterate(),
-            };
-
-
-            // Verify that all queries in 'easyQueries' run in parallel in default mode
-
-            for (int i = 0; i < easyQueries.Length; i++)
-            {
-                Verifier verifier = new ParVerifier();
-                easyQueries[i].Invoke(ParallelExecutionMode.Default, verifier);
-                if (!verifier.Passed)
-                {
-                    Assert.True(false, string.Format("Easy query {0} expected to run in parallel in default mode", i));
-                }
-            }
-
-            // Verify that all queries in 'easyQueries' always run in forced mode
-            for (int i = 0; i < easyQueries.Length; i++)
-            {
-                Verifier verifier = new ParVerifier();
-                easyQueries[i].Invoke(ParallelExecutionMode.ForceParallelism, verifier);
-                if (!verifier.Passed)
-                {
-                    Assert.True(false, string.Format("Easy query {0} expected to run in parallel in force-parallelism mode", i));
-                }
-            }
-
-            // Verify that all queries in 'easyQueries' always run in forced mode
-            for (int i = 0; i < hardQueries.Length; i++)
-            {
-                Verifier verifier = new ParVerifier();
-                hardQueries[i].Invoke(ParallelExecutionMode.ForceParallelism, verifier);
-                if (!verifier.Passed)
-                {
-                    Assert.True(false, string.Format("Hard query {0} expected to run in parallel in force-parallelism mode", i));
-                }
-            }
+            AssertExtensions.Throws<ArgumentNullException>("source", () => ((ParallelQuery<int>)null).WithExecutionMode(ParallelExecutionMode.Default));
         }
 
-        #region Helper Methods / Classes
-
-        private static void Iterate<T>(this IEnumerable<T> e)
+        /// <summary>Tracks all of the Tasks from which AddCurrent is called.</summary>
+        public sealed class UsedTaskTracker
         {
-            foreach (var x in e) { }
-        }
+            private readonly ConcurrentDictionary<int, bool> _taskIdToUsageCount = new ConcurrentDictionary<int, bool>();
 
-        // A class that checks whether Verify has been called from one or multiple threads.
-        private abstract class Verifier
-        {
-            internal abstract int Verify(int x);
-            internal abstract bool Passed { get; }
-        }
-
-        // A class that checks whether the Verify method got called from at least two threads.
-        // The first call to Verify() blocks. If another call to Verify() occurs prior to the timeout
-        // then we know that Verify() is getting called from multiple threads.
-        private class ParVerifier : Verifier
-        {
-            private int _counter = 0;
-            private bool _passed = false;
-            private const int TIMEOUT_LIMIT = 5000;
-
-            internal override int Verify(int x)
+            internal int AddCurrent(int x)
             {
-                lock (this)
-                {
-                    _counter++;
-                    if (_counter == 1)
-                    {
-                        if (Monitor.Wait(this, TIMEOUT_LIMIT))
-                        {
-                            _passed = true;
-                        }
-                    }
-                    else if (_counter == 2)
-                    {
-                        Monitor.Pulse(this);
-                    }
-                }
-
+                _taskIdToUsageCount.TryAdd(Task.CurrentId.GetValueOrDefault(), true);
                 return x;
             }
 
-            internal override bool Passed
-            {
-                get { return _passed; }
-            }
+            internal int UniqueTasksCount { get { return _taskIdToUsageCount.Count; } }
         }
-        #endregion
     }
 }

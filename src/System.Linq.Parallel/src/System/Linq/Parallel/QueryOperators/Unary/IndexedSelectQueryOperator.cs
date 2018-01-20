@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,7 +9,7 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 using System.Threading;
 
 namespace System.Linq.Parallel
@@ -43,8 +44,8 @@ namespace System.Linq.Parallel
                                             Func<TInput, int, TOutput> selector)
             : base(child)
         {
-            Contract.Assert(child != null, "child data source cannot be null");
-            Contract.Assert(selector != null, "need a selector function");
+            Debug.Assert(child != null, "child data source cannot be null");
+            Debug.Assert(selector != null, "need a selector function");
 
             _selector = selector;
 
@@ -67,7 +68,7 @@ namespace System.Linq.Parallel
                 indexState = OrdinalIndexState.Correct;
             }
 
-            Contract.Assert(!ExchangeUtilities.IsWorseThan(indexState, OrdinalIndexState.Correct));
+            Debug.Assert(!ExchangeUtilities.IsWorseThan(indexState, OrdinalIndexState.Correct));
 
             SetOrdinalIndexState(indexState);
         }
@@ -99,7 +100,7 @@ namespace System.Linq.Parallel
             }
             else
             {
-                Contract.Assert(typeof(TKey) == typeof(int));
+                Debug.Assert(typeof(TKey) == typeof(int));
                 inputStreamInt = (PartitionedStream<TInput, int>)(object)inputStream;
             }
 
@@ -141,8 +142,8 @@ namespace System.Linq.Parallel
 
             internal IndexedSelectQueryOperatorEnumerator(QueryOperatorEnumerator<TInput, int> source, Func<TInput, int, TOutput> selector)
             {
-                Contract.Assert(source != null);
-                Contract.Assert(selector != null);
+                Debug.Assert(source != null);
+                Debug.Assert(selector != null);
                 _source = source;
                 _selector = selector;
             }
@@ -157,7 +158,7 @@ namespace System.Linq.Parallel
                 TInput element = default(TInput);
                 if (_source.MoveNext(ref element, ref currentKey))
                 {
-                    Contract.Assert(_selector != null, "expected a compiled selection function");
+                    Debug.Assert(_selector != null, "expected a compiled selection function");
                     currentElement = _selector(element, currentKey);
                     return true;
                 }
@@ -182,8 +183,8 @@ namespace System.Linq.Parallel
         }
 
         //-----------------------------------------------------------------------------------
-        // Query results for an indexed Select operator. The results are indexible if the child
-        // results were indexible.
+        // Query results for an indexed Select operator. The results are indexable if the child
+        // results were indexable.
         //
 
         class IndexedSelectQueryOperatorResults : UnaryQueryOperatorResults
@@ -213,7 +214,7 @@ namespace System.Linq.Parallel
                 : base(childQueryResults, op, settings, preferStriping)
             {
                 _selectOp = op;
-                Contract.Assert(_childQueryResults.IsIndexible);
+                Debug.Assert(_childQueryResults.IsIndexible);
 
                 _childCount = _childQueryResults.ElementsCount;
             }
@@ -222,7 +223,7 @@ namespace System.Linq.Parallel
             {
                 get
                 {
-                    Contract.Assert(_childCount >= 0);
+                    Debug.Assert(_childCount >= 0);
                     return _childQueryResults.ElementsCount;
                 }
             }

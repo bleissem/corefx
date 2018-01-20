@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,7 +9,7 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 using System.Threading;
 
 namespace System.Linq.Parallel
@@ -30,7 +31,7 @@ namespace System.Linq.Parallel
         internal ExceptQueryOperator(ParallelQuery<TInputOutput> left, ParallelQuery<TInputOutput> right, IEqualityComparer<TInputOutput> comparer)
             : base(left, right)
         {
-            Contract.Assert(left != null && right != null, "child data sources cannot be null");
+            Debug.Assert(left != null && right != null, "child data sources cannot be null");
             _comparer = comparer;
             _outputOrdered = LeftChild.OutputOrdered;
             SetOrdinalIndex(OrdinalIndexState.Shuffled);
@@ -41,7 +42,7 @@ namespace System.Linq.Parallel
         {
             // We just open our child operators, left and then right.  Do not propagate the preferStriping value, but 
             // instead explicitly set it to false. Regardless of whether the parent prefers striping or range
-            // partitioning, the output will be hash-partititioned.
+            // partitioning, the output will be hash-partitioned.
             QueryResults<TInputOutput> leftChildResults = LeftChild.Open(settings, false);
             QueryResults<TInputOutput> rightChildResults = RightChild.Open(settings, false);
 
@@ -52,7 +53,7 @@ namespace System.Linq.Parallel
             PartitionedStream<TInputOutput, TLeftKey> leftStream, PartitionedStream<TInputOutput, TRightKey> rightStream,
             IPartitionedStreamRecipient<TInputOutput> outputRecipient, bool preferStriping, QuerySettings settings)
         {
-            Contract.Assert(leftStream.PartitionCount == rightStream.PartitionCount);
+            Debug.Assert(leftStream.PartitionCount == rightStream.PartitionCount);
 
             if (OutputOrdered)
             {
@@ -76,12 +77,12 @@ namespace System.Linq.Parallel
         //
 
         private void WrapPartitionedStreamHelper<TLeftKey, TRightKey>(
-            PartitionedStream<Pair, TLeftKey> leftHashStream, PartitionedStream<TInputOutput, TRightKey> rightPartitionedStream,
+            PartitionedStream<Pair<TInputOutput,NoKeyMemoizationRequired>, TLeftKey> leftHashStream, PartitionedStream<TInputOutput, TRightKey> rightPartitionedStream,
             IPartitionedStreamRecipient<TInputOutput> outputRecipient, CancellationToken cancellationToken)
         {
             int partitionCount = leftHashStream.PartitionCount;
 
-            PartitionedStream<Pair, int> rightHashStream =
+            PartitionedStream<Pair<TInputOutput, NoKeyMemoizationRequired>, int> rightHashStream =
                 ExchangeUtilities.HashRepartition<TInputOutput, NoKeyMemoizationRequired, TRightKey>(
                     rightPartitionedStream, null, null, _comparer, cancellationToken);
 
@@ -135,8 +136,8 @@ namespace System.Linq.Parallel
 
         class ExceptQueryOperatorEnumerator<TLeftKey> : QueryOperatorEnumerator<TInputOutput, int>
         {
-            private QueryOperatorEnumerator<Pair, TLeftKey> _leftSource; // Left data source.
-            private QueryOperatorEnumerator<Pair, int> _rightSource; // Right data source.
+            private QueryOperatorEnumerator<Pair<TInputOutput, NoKeyMemoizationRequired>, TLeftKey> _leftSource; // Left data source.
+            private QueryOperatorEnumerator<Pair<TInputOutput, NoKeyMemoizationRequired>, int> _rightSource; // Right data source.
             private IEqualityComparer<TInputOutput> _comparer; // A comparer used for equality checks/hash-coding.
             private Set<TInputOutput> _hashLookup; // The hash lookup, used to produce the distinct set.
             private CancellationToken _cancellationToken;
@@ -147,13 +148,13 @@ namespace System.Linq.Parallel
             //
 
             internal ExceptQueryOperatorEnumerator(
-                QueryOperatorEnumerator<Pair, TLeftKey> leftSource,
-                QueryOperatorEnumerator<Pair, int> rightSource,
+                QueryOperatorEnumerator<Pair<TInputOutput, NoKeyMemoizationRequired>, TLeftKey> leftSource,
+                QueryOperatorEnumerator<Pair<TInputOutput, NoKeyMemoizationRequired>, int> rightSource,
                 IEqualityComparer<TInputOutput> comparer,
                 CancellationToken cancellationToken)
             {
-                Contract.Assert(leftSource != null);
-                Contract.Assert(rightSource != null);
+                Debug.Assert(leftSource != null);
+                Debug.Assert(rightSource != null);
 
                 _leftSource = leftSource;
                 _rightSource = rightSource;
@@ -167,8 +168,8 @@ namespace System.Linq.Parallel
 
             internal override bool MoveNext(ref TInputOutput currentElement, ref int currentKey)
             {
-                Contract.Assert(_leftSource != null);
-                Contract.Assert(_rightSource != null);
+                Debug.Assert(_leftSource != null);
+                Debug.Assert(_rightSource != null);
 
                 // Build the set out of the left data source, if we haven't already.
 
@@ -178,7 +179,7 @@ namespace System.Linq.Parallel
 
                     _hashLookup = new Set<TInputOutput>(_comparer);
 
-                    Pair rightElement = new Pair(default(TInputOutput), default(NoKeyMemoizationRequired));
+                    Pair<TInputOutput, NoKeyMemoizationRequired> rightElement = default(Pair<TInputOutput, NoKeyMemoizationRequired>);
                     int rightKeyUnused = default(int);
 
                     int i = 0;
@@ -187,12 +188,12 @@ namespace System.Linq.Parallel
                         if ((i++ & CancellationState.POLL_INTERVAL) == 0)
                             CancellationState.ThrowIfCanceled(_cancellationToken);
 
-                        _hashLookup.Add((TInputOutput)rightElement.First);
+                        _hashLookup.Add(rightElement.First);
                     }
                 }
 
                 // Now iterate over the right data source, looking for matches.
-                Pair leftElement = new Pair(default(TInputOutput), default(NoKeyMemoizationRequired));
+                Pair<TInputOutput, NoKeyMemoizationRequired> leftElement = default(Pair<TInputOutput, NoKeyMemoizationRequired>);
                 TLeftKey leftKeyUnused = default(TLeftKey);
 
                 while (_leftSource.MoveNext(ref leftElement, ref leftKeyUnused))
@@ -200,10 +201,10 @@ namespace System.Linq.Parallel
                     if ((_outputLoopCount.Value++ & CancellationState.POLL_INTERVAL) == 0)
                         CancellationState.ThrowIfCanceled(_cancellationToken);
 
-                    if (_hashLookup.Add((TInputOutput)leftElement.First))
+                    if (_hashLookup.Add(leftElement.First))
                     {
                         // This element has never been seen. Return it.
-                        currentElement = (TInputOutput)leftElement.First;
+                        currentElement = leftElement.First;
 #if DEBUG
                         currentKey = unchecked((int)0xdeadbeef);
 #endif
@@ -216,7 +217,7 @@ namespace System.Linq.Parallel
 
             protected override void Dispose(bool disposing)
             {
-                Contract.Assert(_leftSource != null && _rightSource != null);
+                Debug.Assert(_leftSource != null && _rightSource != null);
                 _leftSource.Dispose();
                 _rightSource.Dispose();
             }
@@ -224,11 +225,11 @@ namespace System.Linq.Parallel
 
         class OrderedExceptQueryOperatorEnumerator<TLeftKey> : QueryOperatorEnumerator<TInputOutput, TLeftKey>
         {
-            private QueryOperatorEnumerator<Pair, TLeftKey> _leftSource; // Left data source.
-            private QueryOperatorEnumerator<Pair, int> _rightSource; // Right data source.
+            private QueryOperatorEnumerator<Pair<TInputOutput, NoKeyMemoizationRequired>, TLeftKey> _leftSource; // Left data source.
+            private QueryOperatorEnumerator<Pair<TInputOutput, NoKeyMemoizationRequired>, int> _rightSource; // Right data source.
             private IEqualityComparer<TInputOutput> _comparer; // A comparer used for equality checks/hash-coding.
             private IComparer<TLeftKey> _leftKeyComparer; // A comparer for order keys.
-            private IEnumerator<KeyValuePair<Wrapper<TInputOutput>, Pair>> _outputEnumerator; // The enumerator output elements + order keys.
+            private IEnumerator<KeyValuePair<Wrapper<TInputOutput>, Pair<TInputOutput, TLeftKey>>> _outputEnumerator; // The enumerator output elements + order keys.
             private CancellationToken _cancellationToken;
 
             //---------------------------------------------------------------------------------------
@@ -236,13 +237,13 @@ namespace System.Linq.Parallel
             //
 
             internal OrderedExceptQueryOperatorEnumerator(
-                QueryOperatorEnumerator<Pair, TLeftKey> leftSource,
-                QueryOperatorEnumerator<Pair, int> rightSource,
+                QueryOperatorEnumerator<Pair<TInputOutput, NoKeyMemoizationRequired>, TLeftKey> leftSource,
+                QueryOperatorEnumerator<Pair<TInputOutput, NoKeyMemoizationRequired>, int> rightSource,
                 IEqualityComparer<TInputOutput> comparer, IComparer<TLeftKey> leftKeyComparer,
                 CancellationToken cancellationToken)
             {
-                Contract.Assert(leftSource != null);
-                Contract.Assert(rightSource != null);
+                Debug.Assert(leftSource != null);
+                Debug.Assert(rightSource != null);
 
                 _leftSource = leftSource;
                 _rightSource = rightSource;
@@ -257,15 +258,15 @@ namespace System.Linq.Parallel
 
             internal override bool MoveNext(ref TInputOutput currentElement, ref TLeftKey currentKey)
             {
-                Contract.Assert(_leftSource != null);
-                Contract.Assert(_rightSource != null);
+                Debug.Assert(_leftSource != null);
+                Debug.Assert(_rightSource != null);
 
                 // Build the set out of the left data source, if we haven't already.
                 if (_outputEnumerator == null)
                 {
                     Set<TInputOutput> rightLookup = new Set<TInputOutput>(_comparer);
 
-                    Pair rightElement = new Pair(default(TInputOutput), default(NoKeyMemoizationRequired));
+                    Pair<TInputOutput, NoKeyMemoizationRequired> rightElement = default(Pair<TInputOutput, NoKeyMemoizationRequired>);
                     int rightKeyUnused = default(int);
                     int i = 0;
                     while (_rightSource.MoveNext(ref rightElement, ref rightKeyUnused))
@@ -273,33 +274,33 @@ namespace System.Linq.Parallel
                         if ((i++ & CancellationState.POLL_INTERVAL) == 0)
                             CancellationState.ThrowIfCanceled(_cancellationToken);
 
-                        rightLookup.Add((TInputOutput)rightElement.First);
+                        rightLookup.Add(rightElement.First);
                     }
 
                     var leftLookup =
-                        new Dictionary<Wrapper<TInputOutput>, Pair>(
+                        new Dictionary<Wrapper<TInputOutput>, Pair<TInputOutput, TLeftKey>>(
                             new WrapperEqualityComparer<TInputOutput>(_comparer));
 
-                    Pair leftElement = new Pair(default(TInputOutput), default(NoKeyMemoizationRequired));
+                    Pair<TInputOutput, NoKeyMemoizationRequired> leftElement = default(Pair<TInputOutput, NoKeyMemoizationRequired>);
                     TLeftKey leftKey = default(TLeftKey);
                     while (_leftSource.MoveNext(ref leftElement, ref leftKey))
                     {
                         if ((i++ & CancellationState.POLL_INTERVAL) == 0)
                             CancellationState.ThrowIfCanceled(_cancellationToken);
 
-                        if (rightLookup.Contains((TInputOutput)leftElement.First))
+                        if (rightLookup.Contains(leftElement.First))
                         {
                             continue;
                         }
 
-                        Pair oldEntry;
-                        Wrapper<TInputOutput> wrappedLeftElement = new Wrapper<TInputOutput>((TInputOutput)leftElement.First);
-                        if (!leftLookup.TryGetValue(wrappedLeftElement, out oldEntry) || _leftKeyComparer.Compare(leftKey, (TLeftKey)oldEntry.Second) < 0)
+                        Pair<TInputOutput, TLeftKey> oldEntry;
+                        Wrapper<TInputOutput> wrappedLeftElement = new Wrapper<TInputOutput>(leftElement.First);
+                        if (!leftLookup.TryGetValue(wrappedLeftElement, out oldEntry) || _leftKeyComparer.Compare(leftKey, oldEntry.Second) < 0)
                         {
                             // For each "elem" value, we store the smallest key, and the element value that had that key.
                             // Note that even though two element values are "equal" according to the EqualityComparer,
                             // we still cannot choose arbitrarily which of the two to yield.
-                            leftLookup[wrappedLeftElement] = new Pair(leftElement.First, leftKey);
+                            leftLookup[wrappedLeftElement] = new Pair<TInputOutput, TLeftKey>(leftElement.First, leftKey);
                         }
                     }
 
@@ -308,9 +309,9 @@ namespace System.Linq.Parallel
 
                 if (_outputEnumerator.MoveNext())
                 {
-                    Pair currentPair = _outputEnumerator.Current.Value;
-                    currentElement = (TInputOutput)currentPair.First;
-                    currentKey = (TLeftKey)currentPair.Second;
+                    Pair<TInputOutput,TLeftKey> currentPair = _outputEnumerator.Current.Value;
+                    currentElement = currentPair.First;
+                    currentKey = currentPair.Second;
                     return true;
                 }
 
@@ -319,7 +320,7 @@ namespace System.Linq.Parallel
 
             protected override void Dispose(bool disposing)
             {
-                Contract.Assert(_leftSource != null && _rightSource != null);
+                Debug.Assert(_leftSource != null && _rightSource != null);
                 _leftSource.Dispose();
                 _rightSource.Dispose();
             }

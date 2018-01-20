@@ -1,5 +1,6 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -10,14 +11,14 @@
 //
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Security;
 #if FEATURE_TRACING
 using System.Diagnostics.Tracing;
-
 #endif
+
 namespace System.Threading.Tasks.Dataflow.Internal
 {
 #if FEATURE_TRACING
@@ -25,14 +26,14 @@ namespace System.Threading.Tasks.Dataflow.Internal
     [EventSource(
         Name = "System.Threading.Tasks.Dataflow.DataflowEventSource",
         Guid = "16F53577-E41D-43D4-B47E-C17025BF4025",
-        LocalizationResources = "System.Threading.Tasks.Dataflow.Resources")]
+        LocalizationResources = "FxResources.System.Threading.Tasks.Dataflow.SR")]
     internal sealed class DataflowEtwProvider : EventSource
     {
         /// <summary>
         /// Defines the singleton instance for the dataflow ETW provider.
         /// The dataflow provider GUID is {16F53577-E41D-43D4-B47E-C17025BF4025}.
         /// </summary>
-        internal readonly static DataflowEtwProvider Log = new DataflowEtwProvider();
+        internal static readonly DataflowEtwProvider Log = new DataflowEtwProvider();
         /// <summary>Prevent external instantiation.  All logging should go through the Log instance.</summary>
         private DataflowEtwProvider() { }
 
@@ -67,8 +68,8 @@ namespace System.Threading.Tasks.Dataflow.Internal
         [NonEvent]
         internal void DataflowBlockCreated(IDataflowBlock block, DataflowBlockOptions dataflowBlockOptions)
         {
-            Contract.Requires(block != null, "Block needed for the ETW event.");
-            Contract.Requires(dataflowBlockOptions != null, "Options needed for the ETW event.");
+            Debug.Assert(block != null, "Block needed for the ETW event.");
+            Debug.Assert(dataflowBlockOptions != null, "Options needed for the ETW event.");
 
             if (IsEnabled(EventLevel.Informational, ALL_KEYWORDS))
             {
@@ -95,9 +96,9 @@ namespace System.Threading.Tasks.Dataflow.Internal
         internal void TaskLaunchedForMessageHandling(
             IDataflowBlock block, Task task, TaskLaunchedReason reason, int availableMessages)
         {
-            Contract.Requires(block != null, "Block needed for the ETW event.");
-            Contract.Requires(task != null, "Task needed for the ETW event.");
-            Contract.Requires(reason == TaskLaunchedReason.ProcessingInputMessages || reason == TaskLaunchedReason.OfferingOutputMessages,
+            Debug.Assert(block != null, "Block needed for the ETW event.");
+            Debug.Assert(task != null, "Task needed for the ETW event.");
+            Debug.Assert(reason == TaskLaunchedReason.ProcessingInputMessages || reason == TaskLaunchedReason.OfferingOutputMessages,
                 "The reason should be a supported value from the TaskLaunchedReason enumeration.");
             if (IsEnabled(EventLevel.Informational, ALL_KEYWORDS))
             {
@@ -105,27 +106,10 @@ namespace System.Threading.Tasks.Dataflow.Internal
             }
         }
 
-        [ThreadStatic]
-        private static object[] _sharedArray;
-
         [Event(TASKLAUNCHED_EVENTID, Level = EventLevel.Informational)]
         private void TaskLaunchedForMessageHandling(int blockId, TaskLaunchedReason reason, int availableMessages, int taskId)
         {
-            // There is no explicit WriteEvent() overload matching this event's fields:
-            //     WriteEvent(TASKLAUNCHED_EVENTID, blockId, (int)reason, availableMessages, taskId);
-            // Therefore this call would hit the "params" overload, which leads to multiple object 
-            // allocations every time this event is fired.
-
-            if (_sharedArray == null)
-            {
-                _sharedArray = new object[4];
-            }
-            _sharedArray[0] = blockId;
-            _sharedArray[1] = (int)reason;
-            _sharedArray[2] = availableMessages;
-            _sharedArray[3] = taskId;
-
-            WriteEvent(TASKLAUNCHED_EVENTID, _sharedArray);
+            WriteEvent(TASKLAUNCHED_EVENTID, blockId, reason, availableMessages, taskId);
         }
 
         /// <summary>Describes the reason a task is being launched.</summary>
@@ -145,16 +129,16 @@ namespace System.Threading.Tasks.Dataflow.Internal
         [NonEvent]
         internal void DataflowBlockCompleted(IDataflowBlock block)
         {
-            Contract.Requires(block != null, "Block needed for the ETW event.");
+            Debug.Assert(block != null, "Block needed for the ETW event.");
             if (IsEnabled(EventLevel.Informational, ALL_KEYWORDS))
             {
-                var completionTask = Common.GetPotentiallyNotSupportedCompletionTask(block);
+                Task completionTask = Common.GetPotentiallyNotSupportedCompletionTask(block);
                 bool blockIsCompleted = completionTask != null && completionTask.IsCompleted;
-                Contract.Assert(blockIsCompleted, "Block must be completed for this event to be valid.");
+                Debug.Assert(blockIsCompleted, "Block must be completed for this event to be valid.");
                 if (blockIsCompleted)
                 {
                     var reason = (BlockCompletionReason)completionTask.Status;
-                    var exceptionData = string.Empty;
+                    string exceptionData = string.Empty;
 
                     if (completionTask.IsFaulted)
                     {
@@ -174,14 +158,14 @@ namespace System.Threading.Tasks.Dataflow.Internal
             RanToCompletion = (int)TaskStatus.RanToCompletion,
             /// <summary>The block completed due to an error.</summary>
             Faulted = (int)TaskStatus.Faulted,
-            /// <summary>The block completed due to cancelation.</summary>
+            /// <summary>The block completed due to cancellation.</summary>
             Canceled = (int)TaskStatus.Canceled
         }
 
         [Event(BLOCKCOMPLETED_EVENTID, Level = EventLevel.Informational)]
         private void DataflowBlockCompleted(int blockId, BlockCompletionReason reason, string exceptionData)
         {
-            WriteEvent(BLOCKCOMPLETED_EVENTID, blockId, (int)reason, exceptionData);
+            WriteEvent(BLOCKCOMPLETED_EVENTID, blockId, reason, exceptionData);
         }
     #endregion
 
@@ -192,8 +176,8 @@ namespace System.Threading.Tasks.Dataflow.Internal
         [NonEvent]
         internal void DataflowBlockLinking<T>(ISourceBlock<T> source, ITargetBlock<T> target)
         {
-            Contract.Requires(source != null, "Source needed for the ETW event.");
-            Contract.Requires(target != null, "Target needed for the ETW event.");
+            Debug.Assert(source != null, "Source needed for the ETW event.");
+            Debug.Assert(target != null, "Target needed for the ETW event.");
             if (IsEnabled(EventLevel.Informational, ALL_KEYWORDS))
             {
                 DataflowBlockLinking(Common.GetBlockId(source), Common.GetBlockId(target));
@@ -214,8 +198,8 @@ namespace System.Threading.Tasks.Dataflow.Internal
         [NonEvent]
         internal void DataflowBlockUnlinking<T>(ISourceBlock<T> source, ITargetBlock<T> target)
         {
-            Contract.Requires(source != null, "Source needed for the ETW event.");
-            Contract.Requires(target != null, "Target needed for the ETW event.");
+            Debug.Assert(source != null, "Source needed for the ETW event.");
+            Debug.Assert(target != null, "Target needed for the ETW event.");
             if (IsEnabled(EventLevel.Informational, ALL_KEYWORDS))
             {
                 // Try catch exists to prevent against faulty blocks or blocks that only partially implement the interface

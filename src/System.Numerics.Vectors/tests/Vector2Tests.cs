@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -20,10 +21,25 @@ namespace System.Numerics.Tests
         public void Vector2CopyToTest()
         {
             Vector2 v1 = new Vector2(2.0f, 3.0f);
-            Vector2 v2 = new Vector2(4.5f, 6.5f);
 
-            Single[] a = new Single[3];
-            Single[] b = new Single[2];
+            float[] a = new float[3];
+            float[] b = new float[2];
+
+            Assert.Throws<NullReferenceException>(() => v1.CopyTo(null, 0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => v1.CopyTo(a, -1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => v1.CopyTo(a, a.Length));
+            
+            if (!PlatformDetection.IsNetNative)
+            {
+               AssertExtensions.Throws<ArgumentException>(null, () => v1.CopyTo(a, 2));
+            }
+            else
+            {
+               // The .Net Native code generation optimizer does aggressive optimizations to range checks 
+               // which result in an ArgumentOutOfRangeException exception being thrown at runtime.
+               Assert.ThrowsAny<ArgumentException>(() => v1.CopyTo(a, 2));
+            }
+
             v1.CopyTo(a, 1);
             v1.CopyTo(b);
             Assert.Equal(0.0, a[0]);
@@ -37,22 +53,21 @@ namespace System.Numerics.Tests
         public void Vector2GetHashCodeTest()
         {
             Vector2 v1 = new Vector2(2.0f, 3.0f);
-
-            Vector2 v3 = new Vector2(2.0f, 3.0f);
-            Vector2 v5 = new Vector2(3.0f, 2.0f);
-            Assert.True(v1.GetHashCode() == v1.GetHashCode());
-            Assert.False(v1.GetHashCode() == v5.GetHashCode());
-            Assert.True(v1.GetHashCode() == v3.GetHashCode());
+            Vector2 v2 = new Vector2(2.0f, 3.0f);
+            Vector2 v3 = new Vector2(3.0f, 2.0f);
+            Assert.Equal(v1.GetHashCode(), v1.GetHashCode());
+            Assert.Equal(v1.GetHashCode(), v2.GetHashCode());
+            Assert.NotEqual(v1.GetHashCode(), v3.GetHashCode());
             Vector2 v4 = new Vector2(0.0f, 0.0f);
             Vector2 v6 = new Vector2(1.0f, 0.0f);
             Vector2 v7 = new Vector2(0.0f, 1.0f);
             Vector2 v8 = new Vector2(1.0f, 1.0f);
-            Assert.False(v4.GetHashCode() == v6.GetHashCode());
-            Assert.False(v4.GetHashCode() == v7.GetHashCode());
-            Assert.False(v4.GetHashCode() == v8.GetHashCode());
-            Assert.False(v7.GetHashCode() == v6.GetHashCode());
-            Assert.False(v8.GetHashCode() == v6.GetHashCode());
-            Assert.False(v8.GetHashCode() == v7.GetHashCode());
+            Assert.NotEqual(v4.GetHashCode(), v6.GetHashCode());
+            Assert.NotEqual(v4.GetHashCode(), v7.GetHashCode());
+            Assert.NotEqual(v4.GetHashCode(), v8.GetHashCode());
+            Assert.NotEqual(v7.GetHashCode(), v6.GetHashCode());
+            Assert.NotEqual(v8.GetHashCode(), v6.GetHashCode());
+            Assert.NotEqual(v8.GetHashCode(), v7.GetHashCode());
         }
 
         [Fact]
@@ -286,17 +301,17 @@ namespace System.Numerics.Tests
             Vector2 max = new Vector2(1.0f, 1.1f);
 
             // Normal case.
-            // Case N1: specfied value is in the range.
+            // Case N1: specified value is in the range.
             Vector2 expected = new Vector2(0.5f, 0.3f);
             Vector2 actual = Vector2.Clamp(a, min, max);
             Assert.True(MathHelper.Equal(expected, actual), "Vector2f.Clamp did not return the expected value.");
             // Normal case.
-            // Case N2: specfied value is bigger than max value.
+            // Case N2: specified value is bigger than max value.
             a = new Vector2(2.0f, 3.0f);
             expected = max;
             actual = Vector2.Clamp(a, min, max);
             Assert.True(MathHelper.Equal(expected, actual), "Vector2f.Clamp did not return the expected value.");
-            // Case N3: specfied value is smaller than max value.
+            // Case N3: specified value is smaller than max value.
             a = new Vector2(-1.0f, -2.0f);
             expected = min;
             actual = Vector2.Clamp(a, min, max);
@@ -306,24 +321,24 @@ namespace System.Numerics.Tests
             expected = new Vector2(min.X, max.Y);
             actual = Vector2.Clamp(a, min, max);
             Assert.True(MathHelper.Equal(expected, actual), "Vector2f.Clamp did not return the expected value.");
-            // User specfied min value is bigger than max value.
+            // User specified min value is bigger than max value.
             max = new Vector2(0.0f, 0.1f);
             min = new Vector2(1.0f, 1.1f);
 
-            // Case W1: specfied value is in the range.
+            // Case W1: specified value is in the range.
             a = new Vector2(0.5f, 0.3f);
             expected = min;
             actual = Vector2.Clamp(a, min, max);
             Assert.True(MathHelper.Equal(expected, actual), "Vector2f.Clamp did not return the expected value.");
 
             // Normal case.
-            // Case W2: specfied value is bigger than max and min value.
+            // Case W2: specified value is bigger than max and min value.
             a = new Vector2(2.0f, 3.0f);
             expected = min;
             actual = Vector2.Clamp(a, min, max);
             Assert.True(MathHelper.Equal(expected, actual), "Vector2f.Clamp did not return the expected value.");
 
-            // Case W3: specfied value is smaller than min and max value.
+            // Case W3: specified value is smaller than min and max value.
             a = new Vector2(-1.0f, -2.0f);
             expected = min;
             actual = Vector2.Clamp(a, min, max);
@@ -483,7 +498,7 @@ namespace System.Numerics.Tests
             Vector2 actual;
 
             actual = Vector2.TransformNormal(v, m);
-            Assert.Equal(expected, actual);
+            Assert.True(MathHelper.Equal(expected, actual), "Vector2f.Tranform did not return the expected value.");
         }
 
         // A test for TransformNormal (Vector2f, Matrix3x2)
@@ -499,7 +514,7 @@ namespace System.Numerics.Tests
             Vector2 actual;
 
             actual = Vector2.TransformNormal(v, m);
-            Assert.Equal(expected, actual);
+            Assert.True(MathHelper.Equal(expected, actual), "Vector2f.Transform did not return the expected value.");
         }
 
         // A test for Transform (Vector2f, Quaternion)
@@ -636,10 +651,10 @@ namespace System.Numerics.Tests
 
         // A test for operator * (Vector2f, float)
         [Fact]
-        public void Vector2MultiplyTest()
+        public void Vector2MultiplyOperatorTest()
         {
             Vector2 a = new Vector2(2.0f, 3.0f);
-            float factor = 2.0f;
+            const float factor = 2.0f;
 
             Vector2 expected = new Vector2(4.0f, 6.0f);
             Vector2 actual;
@@ -650,10 +665,10 @@ namespace System.Numerics.Tests
 
         // A test for operator * (float, Vector2f)
         [Fact]
-        public void Vector2MultiplyTest4()
+        public void Vector2MultiplyOperatorTest2()
         {
             Vector2 a = new Vector2(2.0f, 3.0f);
-            float factor = 2.0f;
+            const float factor = 2.0f;
 
             Vector2 expected = new Vector2(4.0f, 6.0f);
             Vector2 actual;
@@ -664,7 +679,7 @@ namespace System.Numerics.Tests
 
         // A test for operator * (Vector2f, Vector2f)
         [Fact]
-        public void Vector2MultiplyTest1()
+        public void Vector2MultiplyOperatorTest3()
         {
             Vector2 a = new Vector2(2.0f, 3.0f);
             Vector2 b = new Vector2(4.0f, 5.0f);
@@ -875,12 +890,37 @@ namespace System.Numerics.Tests
 
         // A test for Multiply (Vector2f, float)
         [Fact]
+        public void Vector2MultiplyTest()
+        {
+            Vector2 a = new Vector2(1.0f, 2.0f);
+            const float factor = 2.0f;
+            Vector2 expected = new Vector2(2.0f, 4.0f);
+            Vector2 actual = Vector2.Multiply(a, factor);
+            Assert.Equal(expected, actual);
+        }
+
+        // A test for Multiply (float, Vector2f)
+        [Fact]
         public void Vector2MultiplyTest2()
         {
             Vector2 a = new Vector2(1.0f, 2.0f);
-            float factor = 2.0f;
+            const float factor = 2.0f;
             Vector2 expected = new Vector2(2.0f, 4.0f);
-            Vector2 actual = Vector2.Multiply(a, factor);
+            Vector2 actual = Vector2.Multiply(factor, a);
+            Assert.Equal(expected, actual);
+        }
+
+        // A test for Multiply (Vector2f, Vector2f)
+        [Fact]
+        public void Vector2MultiplyTest3()
+        {
+            Vector2 a = new Vector2(1.0f, 2.0f);
+            Vector2 b = new Vector2(5.0f, 6.0f);
+
+            Vector2 expected = new Vector2(5.0f, 12.0f);
+            Vector2 actual;
+
+            actual = Vector2.Multiply(a, b);
             Assert.Equal(expected, actual);
         }
 

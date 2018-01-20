@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System;
 using System.IO;
@@ -9,38 +10,55 @@ using Xunit;
 public class UmsSecurityTests
 {
     [Fact]
-    public static void ChangePositioViaPointer()
+    public static void ChangePositionViaPointer()
     {
         byte[] data = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 127, 255 };
-        int positionPointerByteArrayNumber = 3;
-        Byte[][] positionPointerByteArrays = new Byte[positionPointerByteArrayNumber][];
-
         unsafe
         {
             fixed (byte* bytePtr = data)
             {
-                //Scenario 1:ST - change the position via the PositionPointer 
                 using (var stream = new UnmanagedMemoryStream(bytePtr, data.Length, data.Length, FileAccess.ReadWrite))
                 {
-                    //we try positionPointerByteArrayNumber (10) different Byte[] arrays
-                    for (int positionLoop = 0; positionLoop < positionPointerByteArrayNumber; positionLoop++)
-                    {
-                        //New Byte array
-                        positionPointerByteArrays[positionLoop] = ArrayHelpers.CreateByteArray(length: 123, value: 24);
-                        //change via PositionPointer
-                        fixed (byte* invalidbytePtr = positionPointerByteArrays[positionLoop])
-                        {
-                            // This depends on the layout of pinned memory
-                            Assert.True((long)invalidbytePtr > ((long)bytePtr + data.Length), String.Format("{0} > {1} + {2}", (long)invalidbytePtr, (long)bytePtr, data.Length));
-                            // not throw currently
-                            stream.PositionPointer = invalidbytePtr;
-                            VerifyNothingCanBeReadOrWritten(stream, data);
-                        }
-                    }
+                    // Make sure the position pointer is where we set it to be
+                    Assert.Equal(expected: (IntPtr)bytePtr, actual: (IntPtr)stream.PositionPointer);
 
+                    // Make sure that moving earlier than the beginning of the stream throws
+                    Assert.Throws<IOException>(() => {
+                        stream.PositionPointer = stream.PositionPointer - 1;
+                    });
+
+                    // Make sure that moving later than the length can be done but then
+                    // fails appropriately during reads and writes, and that the stream's
+                    // data is still intact after the fact
+                    stream.PositionPointer = bytePtr + data.Length;
+                    VerifyNothingCanBeReadOrWritten(stream, data);
                     CheckStreamIntegrity(stream, data);
                 }
             } // fixed
+        }
+    }
+
+    [Fact]
+    [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "NetFX allows a negative Position following some PositionPointer overflowing inputs. See dotnet/coreclr#11376.")]
+    public static void OverflowPositionPointer()
+    {
+        unsafe
+        {
+            using (var ums = new UnmanagedMemoryStream((byte*)0x40000000, 0xB8000000))
+            {
+                ums.PositionPointer = (byte*)0xF0000000;
+                Assert.Equal(0xB0000000, ums.Position);
+
+                if (IntPtr.Size == 4)
+                {
+                    ums.PositionPointer = (byte*)ulong.MaxValue;
+                    Assert.Equal(uint.MaxValue - 0x40000000, ums.Position);
+                }
+                else
+                {
+                    Assert.Throws<ArgumentOutOfRangeException>(() => ums.PositionPointer = (byte*)ulong.MaxValue);
+                }
+            }
         }
     }
 
@@ -61,10 +79,9 @@ public class UmsSecurityTests
         stream.Position = 0;
         Byte[] streamData = new Byte[originalData.Length];
         int value = stream.Read(streamData, 0, streamData.Length);
-        Assert.Equal(originalData.Length, value);
 
-        for (int i = 0; i < originalData.Length; i++)
-            Assert.Equal(originalData[i], streamData[i]);
+        Assert.Equal(originalData.Length, value);
+        Assert.Equal(originalData, streamData, ArrayHelpers.Comparer<byte>());
 
         stream.Position = 0;
     }

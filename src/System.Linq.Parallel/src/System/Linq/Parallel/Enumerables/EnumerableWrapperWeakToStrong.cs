@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -9,7 +10,7 @@
 
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 
 namespace System.Linq.Parallel
 {
@@ -28,7 +29,7 @@ namespace System.Linq.Parallel
 
         internal EnumerableWrapperWeakToStrong(IEnumerable wrappedEnumerable)
         {
-            Contract.Assert(wrappedEnumerable != null);
+            Debug.Assert(wrappedEnumerable != null);
             _wrappedEnumerable = wrappedEnumerable;
         }
 
@@ -56,7 +57,7 @@ namespace System.Linq.Parallel
 
             internal WrapperEnumeratorWeakToStrong(IEnumerator wrappedEnumerator)
             {
-                Contract.Assert(wrappedEnumerator != null);
+                Debug.Assert(wrappedEnumerator != null);
                 _wrappedEnumerator = wrappedEnumerator;
             }
 

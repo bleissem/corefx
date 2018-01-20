@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,8 +9,8 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
-using System.Diagnostics.Contracts;
 
 namespace System.Linq.Parallel
 {
@@ -36,7 +37,7 @@ namespace System.Linq.Parallel
         internal DefaultIfEmptyQueryOperator(IEnumerable<TSource> child, TSource defaultValue)
             : base(child)
         {
-            Contract.Assert(child != null, "child data source cannot be null");
+            Debug.Assert(child != null, "child data source cannot be null");
             _defaultValue = defaultValue;
             SetOrdinalIndexState(ExchangeUtilities.Worse(Child.OrdinalIndexState, OrdinalIndexState.Correct));
         }
@@ -93,12 +94,11 @@ namespace System.Linq.Parallel
             get { return false; }
         }
 
-
         //---------------------------------------------------------------------------------------
         // The enumerator type responsible for executing the default-if-empty operation.
         //
 
-        class DefaultIfEmptyQueryOperatorEnumerator<TKey> : QueryOperatorEnumerator<TSource, TKey>
+        private class DefaultIfEmptyQueryOperatorEnumerator<TKey> : QueryOperatorEnumerator<TSource, TKey>
         {
             private QueryOperatorEnumerator<TSource, TKey> _source; // The data source to enumerate.
             private bool _lookedForEmpty; // Whether this partition has looked for empty yet.
@@ -108,6 +108,7 @@ namespace System.Linq.Parallel
 
             // Data shared among partitions.
             private Shared<int> _sharedEmptyCount; // The number of empty partitions.
+
             private CountdownEvent _sharedLatch; // Shared latch, signaled when partitions process the 1st item.
             private CancellationToken _cancelToken; // Token used to cancel this operator.
 
@@ -119,11 +120,11 @@ namespace System.Linq.Parallel
                 QueryOperatorEnumerator<TSource, TKey> source, TSource defaultValue, int partitionIndex, int partitionCount,
                 Shared<int> sharedEmptyCount, CountdownEvent sharedLatch, CancellationToken cancelToken)
             {
-                Contract.Assert(source != null);
-                Contract.Assert(0 <= partitionIndex && partitionIndex < partitionCount);
-                Contract.Assert(partitionCount > 0);
-                Contract.Assert(sharedEmptyCount != null);
-                Contract.Assert(sharedLatch != null);
+                Debug.Assert(source != null);
+                Debug.Assert(0 <= partitionIndex && partitionIndex < partitionCount);
+                Debug.Assert(partitionCount > 0);
+                Debug.Assert(sharedEmptyCount != null);
+                Debug.Assert(sharedLatch != null);
 
                 _source = source;
                 _defaultValue = defaultValue;
@@ -140,7 +141,7 @@ namespace System.Linq.Parallel
 
             internal override bool MoveNext(ref TSource currentElement, ref TKey currentKey)
             {
-                Contract.Assert(_source != null);
+                Debug.Assert(_source != null);
 
                 bool moveNextResult = _source.MoveNext(ref currentElement, ref currentKey);
 

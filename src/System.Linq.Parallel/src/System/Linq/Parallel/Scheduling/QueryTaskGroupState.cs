@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -10,7 +11,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 
 namespace System.Linq.Parallel
 {
@@ -70,8 +71,8 @@ namespace System.Linq.Parallel
 
         internal void QueryBegin(Task rootTask)
         {
-            Contract.Assert(rootTask != null, "Expected a non-null task");
-            Contract.Assert(_rootTask == null, "Cannot begin a query more than once");
+            Debug.Assert(rootTask != null, "Expected a non-null task");
+            Debug.Assert(_rootTask == null, "Cannot begin a query more than once");
             _rootTask = rootTask;
         }
 
@@ -83,8 +84,8 @@ namespace System.Linq.Parallel
 
         internal void QueryEnd(bool userInitiatedDispose)
         {
-            Contract.Assert(_rootTask != null);
-            //Contract.Assert(Task.Current == null || (Task.Current != _rootTask && Task.Current.Parent != _rootTask));
+            Debug.Assert(_rootTask != null);
+            //Debug.Assert(Task.Current == null || (Task.Current != _rootTask && Task.Current.Parent != _rootTask));
 
             if (Interlocked.Exchange(ref _alreadyEnded, 1) == 0)
             {
@@ -115,7 +116,7 @@ namespace System.Linq.Parallel
 
                         // we only let it pass through iff:
                         // it is not null, not default, and matches the exact token we were given as being the external token
-                        // and the external Token is actually canceled (ie not a spoof OCE(extCT) for a non-canceled extCT)
+                        // and the external Token is actually canceled (i.e. not a spoof OCE(extCT) for a non-canceled extCT)
                         if (oce == null ||
                             !oce.CancellationToken.IsCancellationRequested ||
                             oce.CancellationToken != _cancellationState.ExternalCancellationToken)
@@ -125,7 +126,7 @@ namespace System.Linq.Parallel
                         }
                     }
 
-                    // if all the exceptions were OCE(externalToken), then we will propogate only a single OCE(externalToken) below
+                    // if all the exceptions were OCE(externalToken), then we will propagate only a single OCE(externalToken) below
                     // otherwise, we flatten the aggregate (because the WaitAll above already aggregated) and rethrow.
                     if (!allOCEsOnTrackedExternalCancellationToken)
                         throw flattenedAE;  // Case #1
@@ -140,12 +141,12 @@ namespace System.Linq.Parallel
 
                 if (_cancellationState.MergedCancellationToken.IsCancellationRequested)
                 {
-                    // cancellation has occured but no user-delegate exceptions were detected 
+                    // cancellation has occurred but no user-delegate exceptions were detected 
 
                     // NOTE: it is important that we see other state variables correctly here, and that
                     // read-reordering hasn't played havoc. 
                     // This is OK because 
-                    //   1. all the state writes (eg in the Initiate* methods) are volatile writes (standard .NET MM)
+                    //   1. all the state writes (e,g. in the Initiate* methods) are volatile writes (standard .NET MM)
                     //   2. tokenCancellationRequested is backed by a volatile field, hence the reads below
                     //   won't get reordered about the read of token.IsCancellationRequested.
 
@@ -157,7 +158,7 @@ namespace System.Linq.Parallel
 
                     //otherwise, given that there were no user-delegate exceptions (they would have been rethrown above),
                     //the only remaining situation is user-initiated dispose.
-                    Contract.Assert(_cancellationState.TopLevelDisposedFlag.Value);
+                    Debug.Assert(_cancellationState.TopLevelDisposedFlag.Value);
 
                     // If we aren't actively disposing, that means somebody else previously disposed
                     // of the enumerator. We must throw an ObjectDisposedException.

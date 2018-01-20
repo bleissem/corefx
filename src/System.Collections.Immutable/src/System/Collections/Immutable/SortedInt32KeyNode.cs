@@ -1,12 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.Globalization;
-using Validation;
 
 namespace System.Collections.Immutable
 {
@@ -15,13 +14,13 @@ namespace System.Collections.Immutable
     /// </summary>
     /// <remarks>
     /// This is a trimmed down version of <see cref="ImmutableSortedDictionary{TKey, TValue}.Node"/>
-    /// with TKey fixed to be Int32.  This avoids multiple interface-based dispatches while examining
-    /// each node in the tree during a lookup: an interface call to the comparer's Compare method,
-    /// and then an interface call to Int32's IComparable's CompareTo method as part of
-    /// the GenericComparer{Int32}'s Compare implementation.
+    /// with <c>TKey</c> fixed to be <see cref="int"/>.  This avoids multiple interface-based dispatches while examining
+    /// each node in the tree during a lookup: an interface call to the comparer's <see cref="IComparer{T}.Compare"/> method,
+    /// and then an interface call to <see cref="int"/>'s <see cref="IComparable{T}.CompareTo"/> method as part of
+    /// the <see cref="T:System.Collections.Generic.GenericComparer`1"/>'s <see cref="IComparer{T}.Compare"/> implementation.
     /// </remarks>
     [DebuggerDisplay("{_key} = {_value}")]
-    internal sealed class SortedInt32KeyNode<TValue> : IBinaryTree
+    internal sealed partial class SortedInt32KeyNode<TValue> : IBinaryTree
     {
         /// <summary>
         /// The default empty node.
@@ -36,11 +35,7 @@ namespace System.Collections.Immutable
         /// <summary>
         /// The value associated with this node.
         /// </summary>
-        /// <remarks>
-        /// Sadly, this field could be readonly but doing so breaks serialization due to bug: 
-        /// http://connect.microsoft.com/VisualStudio/feedback/details/312970/weird-argumentexception-when-deserializing-field-in-typedreferences-cannot-be-static-or-init-only
-        /// </remarks>
-        private TValue _value;
+        private readonly TValue _value;
 
         /// <summary>
         /// A value indicating whether this node has been frozen (made immutable).
@@ -84,8 +79,8 @@ namespace System.Collections.Immutable
         /// <param name="frozen">Whether this node is prefrozen.</param>
         private SortedInt32KeyNode(int key, TValue value, SortedInt32KeyNode<TValue> left, SortedInt32KeyNode<TValue> right, bool frozen = false)
         {
-            Requires.NotNull(left, "left");
-            Requires.NotNull(right, "right");
+            Requires.NotNull(left, nameof(left));
+            Requires.NotNull(right, nameof(right));
             Debug.Assert(!frozen || (left._frozen && right._frozen));
 
             _key = key;
@@ -164,7 +159,7 @@ namespace System.Collections.Immutable
         /// Returns an enumerator that iterates through the collection.
         /// </summary>
         /// <returns>
-        /// A <see cref="T:System.Collections.Generic.IEnumerator`1"/> that can be used to iterate through the collection.
+        /// A <see cref="IEnumerator{T}"/> that can be used to iterate through the collection.
         /// </returns>
         public Enumerator GetEnumerator()
         {
@@ -181,7 +176,7 @@ namespace System.Collections.Immutable
         /// <param name="mutated">Receives a value indicating whether this node tree has mutated because of this operation.</param>
         internal SortedInt32KeyNode<TValue> SetItem(int key, TValue value, IEqualityComparer<TValue> valueComparer, out bool replacedExistingValue, out bool mutated)
         {
-            Requires.NotNull(valueComparer, "valueComparer");
+            Requires.NotNull(valueComparer, nameof(valueComparer));
 
             return this.SetOrAdd(key, value, valueComparer, true, out replacedExistingValue, out mutated);
         }
@@ -232,17 +227,14 @@ namespace System.Collections.Immutable
         }
 
         /// <summary>
-        /// Freezes this node and all descendent nodes so that any mutations require a new instance of the nodes.
+        /// Freezes this node and all descendant nodes so that any mutations require a new instance of the nodes.
         /// </summary>
         internal void Freeze(Action<KeyValuePair<int, TValue>> freezeAction = null)
         {
-            // If this node is frozen, all its descendents must already be frozen.
+            // If this node is frozen, all its descendants must already be frozen.
             if (!_frozen)
             {
-                if (freezeAction != null)
-                {
-                    freezeAction(new KeyValuePair<int, TValue>(_key, _value));
-                }
+                freezeAction?.Invoke(new KeyValuePair<int, TValue>(_key, _value));
 
                 _left.Freeze(freezeAction);
                 _right.Freeze(freezeAction);
@@ -257,7 +249,7 @@ namespace System.Collections.Immutable
         /// <returns>The rotated tree.</returns>
         private static SortedInt32KeyNode<TValue> RotateLeft(SortedInt32KeyNode<TValue> tree)
         {
-            Requires.NotNull(tree, "tree");
+            Requires.NotNull(tree, nameof(tree));
             Debug.Assert(!tree.IsEmpty);
 
             if (tree._right.IsEmpty)
@@ -276,7 +268,7 @@ namespace System.Collections.Immutable
         /// <returns>The rotated tree.</returns>
         private static SortedInt32KeyNode<TValue> RotateRight(SortedInt32KeyNode<TValue> tree)
         {
-            Requires.NotNull(tree, "tree");
+            Requires.NotNull(tree, nameof(tree));
             Debug.Assert(!tree.IsEmpty);
 
             if (tree._left.IsEmpty)
@@ -295,7 +287,7 @@ namespace System.Collections.Immutable
         /// <returns>The rotated tree.</returns>
         private static SortedInt32KeyNode<TValue> DoubleLeft(SortedInt32KeyNode<TValue> tree)
         {
-            Requires.NotNull(tree, "tree");
+            Requires.NotNull(tree, nameof(tree));
             Debug.Assert(!tree.IsEmpty);
 
             if (tree._right.IsEmpty)
@@ -314,7 +306,7 @@ namespace System.Collections.Immutable
         /// <returns>The rotated tree.</returns>
         private static SortedInt32KeyNode<TValue> DoubleRight(SortedInt32KeyNode<TValue> tree)
         {
-            Requires.NotNull(tree, "tree");
+            Requires.NotNull(tree, nameof(tree));
             Debug.Assert(!tree.IsEmpty);
 
             if (tree._left.IsEmpty)
@@ -334,7 +326,7 @@ namespace System.Collections.Immutable
         [Pure]
         private static int Balance(SortedInt32KeyNode<TValue> tree)
         {
-            Requires.NotNull(tree, "tree");
+            Requires.NotNull(tree, nameof(tree));
             Debug.Assert(!tree.IsEmpty);
 
             return tree._right._height - tree._left._height;
@@ -350,7 +342,7 @@ namespace System.Collections.Immutable
         [Pure]
         private static bool IsRightHeavy(SortedInt32KeyNode<TValue> tree)
         {
-            Requires.NotNull(tree, "tree");
+            Requires.NotNull(tree, nameof(tree));
             Debug.Assert(!tree.IsEmpty);
             return Balance(tree) >= 2;
         }
@@ -361,7 +353,7 @@ namespace System.Collections.Immutable
         [Pure]
         private static bool IsLeftHeavy(SortedInt32KeyNode<TValue> tree)
         {
-            Requires.NotNull(tree, "tree");
+            Requires.NotNull(tree, nameof(tree));
             Debug.Assert(!tree.IsEmpty);
             return Balance(tree) <= -2;
         }
@@ -374,7 +366,7 @@ namespace System.Collections.Immutable
         [Pure]
         private static SortedInt32KeyNode<TValue> MakeBalanced(SortedInt32KeyNode<TValue> tree)
         {
-            Requires.NotNull(tree, "tree");
+            Requires.NotNull(tree, nameof(tree));
             Debug.Assert(!tree.IsEmpty);
 
             if (IsRightHeavy(tree))
@@ -388,33 +380,6 @@ namespace System.Collections.Immutable
             }
 
             return tree;
-        }
-
-        /// <summary>
-        /// Creates a node tree that contains the contents of a list.
-        /// </summary>
-        /// <param name="items">An indexable list with the contents that the new node tree should contain.</param>
-        /// <param name="start">The starting index within <paramref name="items"/> that should be captured by the node tree.</param>
-        /// <param name="length">The number of elements from <paramref name="items"/> that should be captured by the node tree.</param>
-        /// <returns>The root of the created node tree.</returns>
-        [Pure]
-        private static SortedInt32KeyNode<TValue> NodeTreeFromList(IOrderedCollection<KeyValuePair<int, TValue>> items, int start, int length)
-        {
-            Requires.NotNull(items, "items");
-            Requires.Range(start >= 0, "start");
-            Requires.Range(length >= 0, "length");
-
-            if (length == 0)
-            {
-                return EmptyNode;
-            }
-
-            int rightCount = (length - 1) / 2;
-            int leftCount = (length - 1) - rightCount;
-            SortedInt32KeyNode<TValue> left = NodeTreeFromList(items, start, leftCount);
-            SortedInt32KeyNode<TValue> right = NodeTreeFromList(items, start + leftCount + 1, rightCount);
-            var item = items[start + leftCount];
-            return new SortedInt32KeyNode<TValue>(item.Key, item.Value, left, right, true);
         }
 
         /// <summary>
@@ -472,7 +437,7 @@ namespace System.Collections.Immutable
                     }
                     else
                     {
-                        throw new ArgumentException(String.Format(CultureInfo.CurrentCulture, Strings.DuplicateKey, key));
+                        throw new ArgumentException(String.Format(CultureInfo.CurrentCulture, SR.DuplicateKey, key));
                     }
                 }
 
@@ -601,196 +566,6 @@ namespace System.Collections.Immutable
             }
 
             return _left.Search(key);
-        }
-
-        /// <summary>
-        /// Enumerates the contents of a binary tree.
-        /// </summary>
-        /// <remarks>
-        /// This struct can and should be kept in exact sync with the other binary tree enumerators: 
-        /// ImmutableList.Enumerator, ImmutableSortedMap.Enumerator, and ImmutableSortedSet.Enumerator.
-        /// 
-        /// CAUTION: when this enumerator is actually used as a valuetype (not boxed) do NOT copy it by assigning to a second variable 
-        /// or by passing it to another method.  When this enumerator is disposed of it returns a mutable reference type stack to a resource pool,
-        /// and if the value type enumerator is copied (which can easily happen unintentionally if you pass the value around) there is a risk
-        /// that a stack that has already been returned to the resource pool may still be in use by one of the enumerator copies, leading to data
-        /// corruption and/or exceptions.
-        /// </remarks>
-        [EditorBrowsable(EditorBrowsableState.Advanced)]
-        public struct Enumerator : IEnumerator<KeyValuePair<int, TValue>>, ISecurePooledObjectUser
-        {
-            /// <summary>
-            /// The resource pool of reusable mutable stacks for purposes of enumeration.
-            /// </summary>
-            /// <remarks>
-            /// We utilize this resource pool to make "allocation free" enumeration achievable.
-            /// </remarks>
-            private static readonly SecureObjectPool<Stack<RefAsValueType<SortedInt32KeyNode<TValue>>>, Enumerator> s_enumeratingStacks =
-                new SecureObjectPool<Stack<RefAsValueType<SortedInt32KeyNode<TValue>>>, Enumerator>();
-
-            /// <summary>
-            /// A unique ID for this instance of this enumerator.
-            /// Used to protect pooled objects from use after they are recycled.
-            /// </summary>
-            private readonly int _poolUserId;
-
-            /// <summary>
-            /// The set being enumerated.
-            /// </summary>
-            private SortedInt32KeyNode<TValue> _root;
-
-            /// <summary>
-            /// The stack to use for enumerating the binary tree.
-            /// </summary>
-            private SecurePooledObject<Stack<RefAsValueType<SortedInt32KeyNode<TValue>>>> _stack;
-
-            /// <summary>
-            /// The node currently selected.
-            /// </summary>
-            private SortedInt32KeyNode<TValue> _current;
-
-            /// <summary>
-            /// Initializes an Enumerator structure.
-            /// </summary>
-            /// <param name="root">The root of the set to be enumerated.</param>
-            internal Enumerator(SortedInt32KeyNode<TValue> root)
-            {
-                Requires.NotNull(root, "root");
-
-                _root = root;
-                _current = null;
-                _poolUserId = SecureObjectPool.NewId();
-                _stack = null;
-                if (!_root.IsEmpty)
-                {
-                    if (!s_enumeratingStacks.TryTake(this, out _stack))
-                    {
-                        _stack = s_enumeratingStacks.PrepNew(this, new Stack<RefAsValueType<SortedInt32KeyNode<TValue>>>(root.Height));
-                    }
-
-                    this.PushLeft(_root);
-                }
-            }
-
-            /// <summary>
-            /// The current element.
-            /// </summary>
-            public KeyValuePair<int, TValue> Current
-            {
-                get
-                {
-                    this.ThrowIfDisposed();
-                    if (_current != null)
-                    {
-                        return _current.Value;
-                    }
-
-                    throw new InvalidOperationException();
-                }
-            }
-
-            /// <inheritdoc/>
-            int ISecurePooledObjectUser.PoolUserId
-            {
-                get { return _poolUserId; }
-            }
-
-            /// <summary>
-            /// The current element.
-            /// </summary>
-            object IEnumerator.Current
-            {
-                get { return this.Current; }
-            }
-
-            /// <summary>
-            /// Disposes of this enumerator and returns the stack reference to the resource pool.
-            /// </summary>
-            public void Dispose()
-            {
-                _root = null;
-                _current = null;
-                Stack<RefAsValueType<SortedInt32KeyNode<TValue>>> stack;
-                if (_stack != null && _stack.TryUse(ref this, out stack))
-                {
-                    stack.ClearFastWhenEmpty();
-                    s_enumeratingStacks.TryAdd(this, _stack);
-                }
-
-                _stack = null;
-            }
-
-            /// <summary>
-            /// Advances enumeration to the next element.
-            /// </summary>
-            /// <returns>A value indicating whether there is another element in the enumeration.</returns>
-            public bool MoveNext()
-            {
-                this.ThrowIfDisposed();
-
-                if (_stack != null)
-                {
-                    var stack = _stack.Use(ref this);
-                    if (stack.Count > 0)
-                    {
-                        SortedInt32KeyNode<TValue> n = stack.Pop().Value;
-                        _current = n;
-                        this.PushLeft(n.Right);
-                        return true;
-                    }
-                }
-
-                _current = null;
-                return false;
-            }
-
-            /// <summary>
-            /// Restarts enumeration.
-            /// </summary>
-            public void Reset()
-            {
-                this.ThrowIfDisposed();
-
-                _current = null;
-                if (_stack != null)
-                {
-                    var stack = _stack.Use(ref this);
-                    stack.ClearFastWhenEmpty();
-                    this.PushLeft(_root);
-                }
-            }
-
-            /// <summary>
-            /// Throws an ObjectDisposedException if this enumerator has been disposed.
-            /// </summary>
-            internal void ThrowIfDisposed()
-            {
-                // Since this is a struct, copies might not have been marked as disposed.
-                // But the stack we share across those copies would know.
-                // This trick only works when we have a non-null stack.
-                // For enumerators of empty collections, there isn't any natural
-                // way to know when a copy of the struct has been disposed of.
-
-                if (_root == null || (_stack != null && !_stack.IsOwned(ref this)))
-                {
-                    Validation.Requires.FailObjectDisposed(this);
-                }
-            }
-
-            /// <summary>
-            /// Pushes this node and all its Left descendents onto the stack.
-            /// </summary>
-            /// <param name="node">The starting node to push onto the stack.</param>
-            private void PushLeft(SortedInt32KeyNode<TValue> node)
-            {
-                Requires.NotNull(node, "node");
-                var stack = _stack.Use(ref this);
-                while (!node.IsEmpty)
-                {
-                    stack.Push(new RefAsValueType<SortedInt32KeyNode<TValue>>(node));
-                    node = node.Left;
-                }
-            }
         }
     }
 }

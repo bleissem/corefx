@@ -1,16 +1,16 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // The RegexBoyerMoore object precomputes the Boyer-Moore
 // tables for fast string scanning. These tables allow
-// you to scan for the first occurance of a string within
+// you to scan for the first occurrence of a string within
 // a large body of text without examining every character.
 // The performance of the heuristic depends on the actual
 // string and the text being searched, but usually, the longer
 // the string that is being searched for, the fewer characters
 // need to be examined.
 
-using System.Collections;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -19,29 +19,25 @@ namespace System.Text.RegularExpressions
 {
     internal sealed class RegexBoyerMoore
     {
-        internal int[] _positive;
-        internal int[] _negativeASCII;
-        internal int[][] _negativeUnicode;
-        internal String _pattern;
-        internal int _lowASCII;
-        internal int _highASCII;
-        internal bool _rightToLeft;
-        internal bool _caseInsensitive;
-        internal CultureInfo _culture;
+        internal readonly int[] _positive;
+        internal readonly int[] _negativeASCII;
+        internal readonly int[][] _negativeUnicode;
+        internal readonly string _pattern;
+        internal readonly int _lowASCII;
+        internal readonly int _highASCII;
+        private readonly bool _rightToLeft;
+        internal readonly bool _caseInsensitive;
+        private readonly CultureInfo _culture;
 
-        internal const int infinite = 0x7FFFFFFF;
-
-        /*
-         * Constructs a Boyer-Moore state machine for searching for the string
-         * pattern. The string must not be zero-length.
-         */
-        internal RegexBoyerMoore(String pattern, bool caseInsensitive, bool rightToLeft, CultureInfo culture)
+        /// <summary>
+        /// Constructs a Boyer-Moore state machine for searching for the string
+        /// pattern. The string must not be zero-length.
+        /// </summary>
+        internal RegexBoyerMoore(string pattern, bool caseInsensitive, bool rightToLeft, CultureInfo culture)
         {
-            /*
-             * Sorry,  you just can't use Boyer-Moore to find an empty pattern.
-             * We're doing this for your own protection. (Really, for speed.)
-             */
-            Debug.Assert(pattern.Length != 0, "RegexBoyerMoore called with an empty string.  This is bad for perf");
+            // Sorry, you just can't use Boyer-Moore to find an empty pattern.
+            // We're doing this for your own protection. (Really, for speed.)
+            Debug.Assert(pattern.Length != 0, "RegexBoyerMoore called with an empty string. This is bad for perf");
 
             int beforefirst;
             int last;
@@ -81,16 +77,15 @@ namespace System.Text.RegularExpressions
                 bump = -1;
             }
 
-            /*
-             * PART I - the good-suffix shift table
-             *
-             * compute the positive requirement:
-             * if char "i" is the first one from the right that doesn't match,
-             * then we know the matcher can advance by _positive[i].
-             *
-             * This algorithm is a simplified variant of the
-             *          standard Boyer-Moore good suffix calculation.
-             */
+            // PART I - the good-suffix shift table
+            //
+            // compute the positive requirement:
+            // if char "i" is the first one from the right that doesn't match,
+            // then we know the matcher can advance by _positive[i].
+            //
+            // This algorithm is a simplified variant of the standard
+            // Boyer-Moore good suffix calculation.
+
             _positive = new int[pattern.Length];
 
             examine = last;
@@ -144,12 +139,11 @@ namespace System.Text.RegularExpressions
 
             // scan for the chars for which there are no shifts that yield a different candidate
 
-            /*
-             *  The inside of the if statement used to say
-             *  "_positive[match] = last - beforefirst;"
-             *  This is slightly less agressive in how much we skip, but at worst it
-             *  should mean a little more work rather than skipping a potential match.
-             */
+
+            // The inside of the if statement used to say
+            // "_positive[match] = last - beforefirst;"
+            // This is slightly less aggressive in how much we skip, but at worst it
+            // should mean a little more work rather than skipping a potential match.
             while (match != beforefirst)
             {
                 if (_positive[match] == 0)
@@ -158,19 +152,17 @@ namespace System.Text.RegularExpressions
                 match -= bump;
             }
 
-            /*
-             * PART II - the bad-character shift table
-             *
-             * compute the negative requirement:
-             * if char "ch" is the reject character when testing position "i",
-             * we can slide up by _negative[ch];
-             * (_negative[ch] = str.Length - 1 - str.LastIndexOf(ch))
-             *
-             * the lookup table is divided into ASCII and Unicode portions;
-             * only those parts of the Unicode 16-bit code set that actually
-             * appear in the string are in the table. (Maximum size with
-             * Unicode is 65K; ASCII only case is 512 bytes.)
-             */
+            // PART II - the bad-character shift table
+            //
+            // compute the negative requirement:
+            // if char "ch" is the reject character when testing position "i",
+            // we can slide up by _negative[ch];
+            // (_negative[ch] = str.Length - 1 - str.LastIndexOf(ch))
+            //
+            // the lookup table is divided into ASCII and Unicode portions;
+            // only those parts of the Unicode 16-bit code set that actually
+            // appear in the string are in the table. (Maximum size with
+            // Unicode is 65K; ASCII only case is 512 bytes.)
 
             _negativeASCII = new int[128];
 
@@ -209,12 +201,12 @@ namespace System.Text.RegularExpressions
                     {
                         int[] newarray = new int[256];
 
-                        for (int k = 0; k < 256; k++)
+                        for (int k = 0; k < newarray.Length; k++)
                             newarray[k] = last - beforefirst;
 
                         if (i == 0)
                         {
-                            System.Array.Copy(_negativeASCII, newarray, 128);
+                            Array.Copy(_negativeASCII, 0, newarray, 0, 128);
                             _negativeASCII = newarray;
                         }
 
@@ -249,14 +241,14 @@ namespace System.Text.RegularExpressions
             }
             else
             {
-                return (0 == String.CompareOrdinal(_pattern, 0, text, index, _pattern.Length));
+                return (0 == string.CompareOrdinal(_pattern, 0, text, index, _pattern.Length));
             }
         }
 
-        /*
-         * When a regex is anchored, we can do a quick IsMatch test instead of a Scan
-         */
-        internal bool IsMatch(String text, int index, int beglimit, int endlimit)
+        /// <summary>
+        /// When a regex is anchored, we can do a quick IsMatch test instead of a Scan
+        /// </summary>
+        internal bool IsMatch(string text, int index, int beglimit, int endlimit)
         {
             if (!_rightToLeft)
             {
@@ -274,16 +266,15 @@ namespace System.Text.RegularExpressions
             }
         }
 
-
-        /*
-         * Scan uses the Boyer-Moore algorithm to find the first occurrance
-         * of the specified string within text, beginning at index, and
-         * constrained within beglimit and endlimit.
-         *
-         * The direction and case-sensitivity of the match is determined
-         * by the arguments to the RegexBoyerMoore constructor.
-         */
-        internal int Scan(String text, int index, int beglimit, int endlimit)
+        /// <summary>
+        /// Scan uses the Boyer-Moore algorithm to find the first occurrence
+        /// of the specified string within text, beginning at index, and
+        /// constrained within beglimit and endlimit.
+        ///
+        /// The direction and case-sensitivity of the match is determined
+        /// by the arguments to the RegexBoyerMoore constructor.
+        /// </summary>
+        internal int Scan(string text, int index, int beglimit, int endlimit)
         {
             int test;
             int test2;
@@ -379,16 +370,16 @@ namespace System.Text.RegularExpressions
             }
         }
 
-        /*
-         * Used when dumping for debugging.
-         */
-        public override String ToString()
+        /// <summary>
+        /// Used when dumping for debugging.
+        /// </summary>
+        public override string ToString()
         {
             return _pattern;
         }
 
 #if DEBUG
-        public String Dump(String indent)
+        public string Dump(string indent)
         {
             StringBuilder sb = new StringBuilder();
 

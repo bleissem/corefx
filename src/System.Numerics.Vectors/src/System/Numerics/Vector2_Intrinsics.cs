@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Runtime.CompilerServices;
 
@@ -64,11 +65,18 @@ namespace System.Numerics
         public void CopyTo(Single[] array, int index)
         {
             if (array == null)
-                throw new ArgumentNullException("values");
+            {
+                // Match the JIT's exception type here. For perf, a NullReference is thrown instead of an ArgumentNull.
+                throw new NullReferenceException(SR.Arg_NullArgumentNullRef);
+            }
             if (index < 0 || index >= array.Length)
-                throw new ArgumentOutOfRangeException(SR.GetString("Arg_ArgumentOutOfRangeException", index));
+            {
+                throw new ArgumentOutOfRangeException(nameof(index), SR.Format(SR.Arg_ArgumentOutOfRangeException, index));
+            }
             if ((array.Length - index) < 2)
-                throw new ArgumentException(SR.GetString("Arg_ElementsInSourceIsGreaterThanDestination", index));
+            {
+                throw new ArgumentException(SR.Format(SR.Arg_ElementsInSourceIsGreaterThanDestination, index));
+            }
             array[index] = X;
             array[index + 1] = Y;
         }
@@ -139,7 +147,7 @@ namespace System.Numerics
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector2 Abs(Vector2 value)
         {
-            return new Vector2(Math.Abs(value.X), Math.Abs(value.Y));
+            return new Vector2(MathF.Abs(value.X), MathF.Abs(value.Y));
         }
 
         /// <summary>
@@ -151,7 +159,7 @@ namespace System.Numerics
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector2 SquareRoot(Vector2 value)
         {
-            return new Vector2((Single)Math.Sqrt(value.X), (Single)Math.Sqrt(value.Y));
+            return new Vector2(MathF.Sqrt(value.X), MathF.Sqrt(value.Y));
         }
         #endregion Public Static Methods
 

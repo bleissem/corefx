@@ -1,5 +1,6 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using Microsoft.Win32.SafeHandles;
 using System.Security;
@@ -15,7 +16,7 @@ namespace System.IO.Pipes
     /// </summary>
     public sealed partial class NamedPipeClientStream : PipeStream
     {
-        // Maximum interval in miliseconds between which cancellation is checked.
+        // Maximum interval in milliseconds between which cancellation is checked.
         // Used by ConnectInternal. 50ms is fairly responsive time but really long time for processor.
         private const int CancellationCheckInterval = 50;
         private readonly string _normalizedPipePath;
@@ -25,49 +26,43 @@ namespace System.IO.Pipes
         private readonly PipeDirection _direction;
 
         // Creates a named pipe client using default server (same machine, or "."), and PipeDirection.InOut 
-        [SecuritySafeCritical]
         public NamedPipeClientStream(String pipeName)
             : this(".", pipeName, PipeDirection.InOut, PipeOptions.None, TokenImpersonationLevel.None, HandleInheritability.None)
         { 
         }
 
-        [SecuritySafeCritical]
         public NamedPipeClientStream(String serverName, String pipeName)
             : this(serverName, pipeName, PipeDirection.InOut, PipeOptions.None, TokenImpersonationLevel.None, HandleInheritability.None)
         {
         }
 
-        [SecuritySafeCritical]
         public NamedPipeClientStream(String serverName, String pipeName, PipeDirection direction)
             : this(serverName, pipeName, direction, PipeOptions.None, TokenImpersonationLevel.None, HandleInheritability.None)
         {
         }
 
-        [SecuritySafeCritical]
         public NamedPipeClientStream(String serverName, String pipeName, PipeDirection direction, PipeOptions options)
             : this(serverName, pipeName, direction, options, TokenImpersonationLevel.None, HandleInheritability.None)
         {
         }
 
-        [SecuritySafeCritical]
         public NamedPipeClientStream(String serverName, String pipeName, PipeDirection direction,
             PipeOptions options, TokenImpersonationLevel impersonationLevel)
             : this(serverName, pipeName, direction, options, impersonationLevel, HandleInheritability.None)
         {
         }
 
-        [SecuritySafeCritical]
-        internal NamedPipeClientStream(String serverName, String pipeName, PipeDirection direction,
+        public NamedPipeClientStream(String serverName, String pipeName, PipeDirection direction,
             PipeOptions options, TokenImpersonationLevel impersonationLevel, HandleInheritability inheritability)
             : base(direction, 0)
         {
             if (pipeName == null)
             {
-                throw new ArgumentNullException("pipeName");
+                throw new ArgumentNullException(nameof(pipeName));
             }
             if (serverName == null)
             {
-                throw new ArgumentNullException("serverName", SR.ArgumentNull_ServerName);
+                throw new ArgumentNullException(nameof(serverName), SR.ArgumentNull_ServerName);
             }
             if (pipeName.Length == 0)
             {
@@ -79,15 +74,15 @@ namespace System.IO.Pipes
             }
             if ((options & ~(PipeOptions.WriteThrough | PipeOptions.Asynchronous)) != 0)
             {
-                throw new ArgumentOutOfRangeException("options", SR.ArgumentOutOfRange_OptionsInvalid);
+                throw new ArgumentOutOfRangeException(nameof(options), SR.ArgumentOutOfRange_OptionsInvalid);
             }
             if (impersonationLevel < TokenImpersonationLevel.None || impersonationLevel > TokenImpersonationLevel.Delegation)
             {
-                throw new ArgumentOutOfRangeException("impersonationLevel", SR.ArgumentOutOfRange_ImpersonationInvalid);
+                throw new ArgumentOutOfRangeException(nameof(impersonationLevel), SR.ArgumentOutOfRange_ImpersonationInvalid);
             }
             if (inheritability < HandleInheritability.None || inheritability > HandleInheritability.Inheritable)
             {
-                throw new ArgumentOutOfRangeException("inheritability", SR.ArgumentOutOfRange_HandleInheritabilityNoneOrInheritable);
+                throw new ArgumentOutOfRangeException(nameof(inheritability), SR.ArgumentOutOfRange_HandleInheritabilityNoneOrInheritable);
             }
 
             _normalizedPipePath = GetPipePath(serverName, pipeName);
@@ -98,17 +93,16 @@ namespace System.IO.Pipes
         }
 
         // Create a NamedPipeClientStream from an existing server pipe handle.
-        [SecuritySafeCritical]
         public NamedPipeClientStream(PipeDirection direction, bool isAsync, bool isConnected, SafePipeHandle safePipeHandle)
             : base(direction, 0)
         {
             if (safePipeHandle == null)
             {
-                throw new ArgumentNullException("safePipeHandle");
+                throw new ArgumentNullException(nameof(safePipeHandle));
             }
             if (safePipeHandle.IsInvalid)
             {
-                throw new ArgumentException(SR.Argument_InvalidHandle, "safePipeHandle");
+                throw new ArgumentException(SR.Argument_InvalidHandle, nameof(safePipeHandle));
             }
             ValidateHandleIsPipe(safePipeHandle);
 
@@ -135,10 +129,43 @@ namespace System.IO.Pipes
 
             if (timeout < 0 && timeout != Timeout.Infinite)
             {
-                throw new ArgumentOutOfRangeException("timeout", SR.ArgumentOutOfRange_InvalidTimeout);
+                throw new ArgumentOutOfRangeException(nameof(timeout), SR.ArgumentOutOfRange_InvalidTimeout);
             }
 
             ConnectInternal(timeout, CancellationToken.None, Environment.TickCount);
+        }
+
+        private void ConnectInternal(int timeout, CancellationToken cancellationToken, int startTime)
+        {
+            // This is the main connection loop. It will loop until the timeout expires.  
+            int elapsed = 0;
+            var sw = new SpinWait();
+            do
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // Determine how long we should wait in this connection attempt
+                int waitTime = timeout - elapsed;
+                if (cancellationToken.CanBeCanceled && waitTime > CancellationCheckInterval)
+                {
+                    waitTime = CancellationCheckInterval;
+                }
+
+                // Try to connect.
+                if (TryConnect(waitTime, cancellationToken))
+                {
+                    return;
+                }
+
+                // Some platforms may return immediately from TryConnect if the connection could not be made, 
+                // e.g. WaitNamedPipe on Win32 will return immediately if the pipe hasn't yet been created,
+                // and open on Unix will fail if the file isn't yet available.  Rather than just immediately
+                // looping around again, do slightly smarter busy waiting.
+                sw.SpinOnce();
+            }
+            while (timeout == Timeout.Infinite || (elapsed = unchecked(Environment.TickCount - startTime)) < timeout);
+
+            throw new TimeoutException();
         }
 
         public Task ConnectAsync()
@@ -164,7 +191,7 @@ namespace System.IO.Pipes
 
             if (timeout < 0 && timeout != Timeout.Infinite)
             {
-                throw new ArgumentOutOfRangeException("timeout", SR.ArgumentOutOfRange_InvalidTimeout);
+                throw new ArgumentOutOfRangeException(nameof(timeout), SR.ArgumentOutOfRange_InvalidTimeout);
             }
 
             if (cancellationToken.IsCancellationRequested)
@@ -178,8 +205,7 @@ namespace System.IO.Pipes
 
         // override because named pipe clients can't get/set properties when waiting to connect
         // or broken
-        [SecurityCritical]
-        internal override void CheckPipePropertyOperations()
+        protected internal override void CheckPipePropertyOperations()
         {
             base.CheckPipePropertyOperations();
 
@@ -202,7 +228,7 @@ namespace System.IO.Pipes
             }
             if (State == PipeState.Closed)
             {
-                throw __Error.GetPipeNotOpen();
+                throw Error.GetPipeNotOpen();
             }
         }
     }

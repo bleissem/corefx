@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Diagnostics;
 using System.Text;
@@ -27,7 +28,7 @@ namespace System.Xml.Schema
     }
 
     /// <summary>
-    /// This structure extends System.DateTime to support timeInTicks zone and Gregorian types scomponents of an Xsd Duration.  It is used internally to support Xsd durations without loss
+    /// This structure extends System.DateTime to support timeInTicks zone and Gregorian types components of an Xsd Duration.  It is used internally to support Xsd durations without loss
     /// of fidelity.  XsdDuration structures are immutable once they've been created.
     /// </summary>
     internal struct XsdDateTime

@@ -1,32 +1,41 @@
-@echo off
+@if not defined _echo @echo off
 setlocal
 
-:: Note: We've disabled node reuse because it causes file locking issues.
-::       The issue is that we extend the build with our own targets which
-::       means that that rebuilding cannot successully delete the task
-::       assembly. 
+if /I [%1] == [-?] goto Usage
 
-:: Check prerequisites
-set _msbuildexe="%ProgramFiles(x86)%\MSBuild\12.0\Bin\MSBuild.exe"
-if not exist %_msbuildexe% set _msbuildexe="%ProgramFiles%\MSBuild\12.0\Bin\MSBuild.exe"
-if not exist %_msbuildexe% set _msbuildexe="%ProgramFiles(x86)%\MSBuild\14.0\Bin\MSBuild.exe"
-if not exist %_msbuildexe% set _msbuildexe="%ProgramFiles%\MSBuild\14.0\Bin\MSBuild.exe"
-if not exist %_msbuildexe% echo Error: Could not find MSBuild.exe.  Please see https://github.com/dotnet/corefx/wiki/Developer%%20Guide for build instructions. && exit /b 1
+if [%1] == [] goto Build
 
-if not defined VSINSTALLDIR echo Error: build.cmd should be run from a Visual Studio Command Prompt.  Please see https://github.com/dotnet/corefx/wiki/Developer%%20Guide for build instructions. && exit /b 1
+set _rootDirectory=%CD%\
+if EXIST %_rootDirectory%%1 goto :BuildDirectory
+set _rootDirectory=%~dp0src\
+if EXIST %_rootDirectory%%1 goto :BuildDirectory
 
-:: Log build command line
-set _buildprefix=echo
-set _buildpostfix=^> "%~dp0msbuild.log"
-call :build %*
+:Build
+call %~dp0build-native.cmd %*
+if NOT [%ERRORLEVEL%]==[0] exit /b 1
+call %~dp0build-managed.cmd -BuildPackages=true %*
+exit /b %ERRORLEVEL%
+goto :EOF
 
-:: Build
-set _buildprefix=
-set _buildpostfix=
-call :build %*
+:BuildDirectory
+echo %~dp0run.cmd build-directory -directory:%_rootDirectory%%*
+call %~dp0run.cmd build-directory -directory:%_rootDirectory%%*
+exit /b %ERRORLEVEL%
 
-goto :eof
+goto :EOF
 
-:build
-%_buildprefix% %_msbuildexe% "%~dp0build.proj" /nologo /maxcpucount /verbosity:minimal /nodeReuse:false /fileloggerparameters:Verbosity=diag;LogFile="%~dp0msbuild.log";Append %* %_buildpostfix%
-goto :eof
+:Usage
+echo.
+echo There are new changes on how we build. Use this script only for generic
+echo build instructions that apply for both build native and build managed.
+echo Otherwise:
+echo.
+echo Before                Now
+echo build.cmd native      build-native.cmd
+echo build.cmd managed     build-managed.cmd
+echo.
+echo For more information: "https://github.com/dotnet/corefx/blob/master/Documentation/project-docs/developer-guide.md"
+echo ----------------------------------------------------------------------------
+echo.
+echo.
+goto :Build

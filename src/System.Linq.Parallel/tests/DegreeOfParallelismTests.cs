@@ -1,140 +1,153 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
-using Xunit;
-using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
+using Xunit;
 
-namespace Test
+namespace System.Linq.Parallel.Tests
 {
-    public class DegreeOfParallelismTests
+    public static class DegreeOfParallelismTests
     {
-        [Fact]
-        [OuterLoop]
-        public static void RunDopTests()
+        public static IEnumerable<object[]> DegreeData(int[] counts, int[] degrees)
         {
-            RunDopTest(1, false);
-            RunDopTest(4, false);
-            RunDopTest(512, false);
-            RunDopTest(513, true);
-        }
-
-        [Fact]
-        [OuterLoop]
-        public static void RunDopBarrierTest()
-        {
-            RunDopBarrierTestCore(1);
-            RunDopBarrierTestCore(4);
-            RunDopBarrierTestCore(32);
-            // These variations take way too long and hit the 100s timeout.
-            //RunDopBarrierTest(64);
-            //RunDopBarrierTest(512);
-        }
-
-        [Fact]
-        [OuterLoop]
-        public static void RunDopPipeliningTest()
-        {
-            RunDopPipeliningTestCore(1000000, 1);
-            RunDopPipeliningTestCore(1000000, 4);
-            RunDopPipeliningTestCore(1000000, 64);
-            RunDopPipeliningTestCore(1000000, 512);
-        }
-
-        [Fact]
-        [OuterLoop]
-        public static void RunDopPipeliningTestSleep()
-        {
-            RunDopPipeliningTestSleepCore(1, 1);
-            RunDopPipeliningTestSleepCore(4, 4);
-            RunDopPipeliningTestSleepCore(32, 4);
-            //Re-enable for perf testing
-            //RunDopPipeliningTestSleep(64, 64);            
-            //RunDopPipeliningTestSleep(512, 512);
-        }
-
-        //
-        // A simple test to check whether PLINQ appears to work with a particular DOP
-        //
-        private static void RunDopTest(int dop, bool expectException)
-        {
-            int[] arr = Enumerable.Repeat(5, 1000).ToArray();
-
-            int real = 0;
-
-            try
+            foreach (object[] results in UnorderedSources.Ranges(counts.DefaultIfEmpty(Sources.OuterLoopCount), x => degrees.DefaultIfEmpty(x)))
             {
-                real = arr.AsParallel().WithDegreeOfParallelism(dop)
-                     .Select(x => 2 * x)
-                     .Sum();
+                yield return results;
+            }
+        }
 
-                int expect = arr.Length * 10;
-                if (real != expect)
+        public static IEnumerable<object[]> NotLoadBalancedDegreeData(int[] counts, int[] degrees)
+        {
+            foreach (object[] results in DegreeData(counts, degrees))
+            {
+                Labeled<ParallelQuery<int>> query = (Labeled<ParallelQuery<int>>)results[0];
+                if (query.ToString().StartsWith("Partitioner"))
                 {
-                    Assert.True(false, string.Format("RunDopTest(dop={0},expectException={1}):  > Incorrect result: expected {2} got {3}",
-                        dop, expectException, expect, real));
+                    yield return new object[] { Labeled.Label(query.ToString(), Partitioner.Create(Enumerable.Range(0, (int)results[1]).ToArray(), false).AsParallel()), results[1], results[2] };
+                }
+                else if (query.ToString().StartsWith("Enumerable.Range"))
+                {
+                    yield return new object[] { Labeled.Label(query.ToString(), new StrictPartitioner<int>(Partitioner.Create(Enumerable.Range(0, (int)results[1]), EnumerablePartitionerOptions.NoBuffering), (int)results[1]).AsParallel()), results[1], results[2] };
+                }
+                else
+                {
+                    yield return results;
                 }
             }
-            catch (ArgumentOutOfRangeException)
+        }
+
+        [Theory]
+        [MemberData(nameof(DegreeData), new[] { 1024 }, new[] { 1, 4, 512 })]
+        [OuterLoop]
+        public static void DegreeOfParallelism(Labeled<ParallelQuery<int>> labeled, int count, int degree)
+        {
+            Assert.Equal(Functions.SumRange(0, count), labeled.Item.WithDegreeOfParallelism(degree).Sum());
+        }
+
+        [Theory]
+        [MemberData(nameof(DegreeData), new[] { 1, 4, 32 }, new int[] { /* same as count */ })]
+        [OuterLoop]
+        public static void DegreeOfParallelism_Barrier(Labeled<ParallelQuery<int>> labeled, int count, int degree)
+        {
+            using (ThreadPoolHelpers.EnsureMinThreadsAtLeast(degree))
             {
-                if (!expectException)
-                    Assert.True(false, string.Format("ArgumentOutOfRangeException should not have been thrown."));
-                else
-                    return;
+                var barrier = new Barrier(degree);
+                Assert.Equal(Functions.SumRange(0, count), labeled.Item.WithDegreeOfParallelism(degree).Sum(x => { barrier.SignalAndWait(); return x; }));
             }
-
-            if (expectException)
-                Assert.True(false, string.Format("ArgumentOutOfRangeException was expected."));
         }
 
-        //
-        // A simple test to verify that PLINQ will really create the desired number of tasks.
-        //
-        // Warning: the test will not complete until ThreadPool creates at least dop concurrent threads.
-        // To avoid this issue, we call ThreadPool.SetMinThreads before running this test.
-        //
-        private static void RunDopBarrierTestCore(int dop)
+        [Theory]
+        [MemberData(nameof(DegreeData), new int[] { /* Sources.OuterLoopCount */ }, new[] { 1, 4, 64, 128 })]
+        [OuterLoop]
+        public static void DegreeOfParallelism_Pipelining(Labeled<ParallelQuery<int>> labeled, int count, int degree)
         {
-            Console.WriteLine("RunDopBarrierTest(dop={0}):  [Hangs on failure]", dop);
-            Barrier barrier = new Barrier(dop);
-            ParallelEnumerable.Range(0, dop).WithDegreeOfParallelism(dop).Select(x => { barrier.SignalAndWait(); return x; }).ToArray();
-            // The test passed, since it did not hang
-        }
-
-        //
-        // A test to verify that PLINQ pipelining works with a particular DOP
-        //
-        private static void RunDopPipeliningTestCore(int n, int dop)
-        {
-            var q = ParallelEnumerable.Range(0, n).WithDegreeOfParallelism(dop).Select(x => -x);
-            var res = q.AsEnumerable().ToArray();
-            Array.Sort(res);
-            Array.Reverse(res);
-
-            Assert.True(res.SequenceEqual(Enumerable.Range(0, n).Select(x => -x)),
-                string.Format("RunDopPipeliningTest(n={0}, dop={1}):  FAILED. Query generated wrong output", n, dop));
-        }
-
-        //
-        // A test to verify that PLINQ pipelining works with a particular DOP in a case that throttles the producers
-        //
-        private static void RunDopPipeliningTestSleepCore(int n, int dop)
-        {
-            var q = ParallelEnumerable.Range(0, n).WithDegreeOfParallelism(dop).Select(x =>
+            using (ThreadPoolHelpers.EnsureMinThreadsAtLeast(degree))
             {
-                Task.WaitAll(Task.Delay(3000));
-                return -x;
-            });
-            var res = q.AsEnumerable().ToArray();
-            Array.Sort(res);
-            Array.Reverse(res);
+                int expected = 1 - count;
+                foreach (int result in labeled.Item.WithDegreeOfParallelism(degree).Select(x => -x).OrderBy(x => x))
+                {
+                    Assert.Equal(expected++, result);
+                }
+            }
+        }
 
-            Assert.True(res.SequenceEqual(Enumerable.Range(0, n).Select(x => -x)),
-                string.Format("RunDopPipeliningTestSleep(n={0}, dop={1}):  FAILED.  Query generated wrong output.", n, dop));
+        [Theory]
+        [MemberData(nameof(DegreeData), new[] { 1, 4 }, new int[] { /* same as count */ })]
+        [MemberData(nameof(DegreeData), new[] { 32 }, new[] { 4 })]
+        [OuterLoop]
+        public static void DegreeOfParallelism_Throttled_Pipelining(Labeled<ParallelQuery<int>> labeled, int count, int degree)
+        {
+            using (ThreadPoolHelpers.EnsureMinThreadsAtLeast(degree))
+            {
+                Assert.True(labeled.Item.WithDegreeOfParallelism(degree).Select(x =>
+                {
+                    var sw = new SpinWait();
+                    while (!sw.NextSpinWillYield) sw.SpinOnce(); // brief spin to wait a small amount of time
+                    return -x;
+                }).OrderBy(x => x).SequenceEqual(ParallelEnumerable.Range(1 - count, count).AsOrdered()));
+            }
+        }
+
+        [Theory]
+        [MemberData(nameof(NotLoadBalancedDegreeData), new[] { 1, 4 }, new int[] { /* same as count */ })]
+        [MemberData(nameof(NotLoadBalancedDegreeData), new[] { 32, 512, 1024 }, new[] { 4, 16 })]
+        [OuterLoop]
+        public static void DegreeOfParallelism_Aggregate_Accumulator(Labeled<ParallelQuery<int>> labeled, int count, int degree)
+        {
+            ParallelQuery<int> query = labeled.Item;
+            int accumulatorCombineCount = 0;
+
+            int actual = query.WithDegreeOfParallelism(degree).Aggregate(
+                0,
+                (accumulator, x) => accumulator + x,
+                (left, right) => { Interlocked.Increment(ref accumulatorCombineCount); return left + right; },
+                result => result);
+            Assert.Equal(Functions.SumRange(0, count), actual);
+            Assert.Equal(degree - 1, accumulatorCombineCount);
+        }
+
+        [Theory]
+        [MemberData(nameof(NotLoadBalancedDegreeData), new[] { 1, 4 }, new int[] { /* same as count */ })]
+        [MemberData(nameof(NotLoadBalancedDegreeData), new[] { 32, 512, 1024 }, new[] { 4, 16 })]
+        [OuterLoop]
+        public static void DegreeOfParallelism_Aggregate_SeedFunction(Labeled<ParallelQuery<int>> labeled, int count, int degree)
+        {
+            ParallelQuery<int> query = labeled.Item;
+            int accumulatorCombineCount = 0;
+            int seedFunctionCallCount = 0;
+
+            int actual = query.WithDegreeOfParallelism(degree).Aggregate(
+                () => { Interlocked.Increment(ref seedFunctionCallCount); return 0; },
+                (accumulator, x) => accumulator + x,
+                (left, right) => { Interlocked.Increment(ref accumulatorCombineCount); return left + right; },
+                result => result);
+            Assert.Equal(Functions.SumRange(0, count), actual);
+            Assert.Equal(seedFunctionCallCount, degree);
+            Assert.Equal(seedFunctionCallCount - 1, accumulatorCombineCount);
+            Assert.Equal(degree - 1, accumulatorCombineCount);
+        }
+
+        [Theory]
+        [MemberData(nameof(DegreeData), new[] { 1024 }, new[] { 0, 513 })]
+        [OuterLoop]
+        public static void DegreeOfParallelism_OutOfRange(Labeled<ParallelQuery<int>> labeled, int count, int degree)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => labeled.Item.WithDegreeOfParallelism(degree));
+        }
+
+        [Fact]
+        public static void DegreeOfParallelism_Multiple()
+        {
+            Assert.Throws<InvalidOperationException>(() => ParallelEnumerable.Range(0, 2).WithDegreeOfParallelism(2).WithDegreeOfParallelism(2));
+        }
+
+        [Fact]
+        public static void DegreeOfParallelism_ArgumentNullException()
+        {
+            AssertExtensions.Throws<ArgumentNullException>("source", () => ((ParallelQuery<bool>)null).WithDegreeOfParallelism(2));
         }
     }
 }

@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,7 +9,8 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 
 namespace System.Linq.Parallel
@@ -22,9 +24,9 @@ namespace System.Linq.Parallel
     ///
     /// An aggregation performs parallel prefixing internally. Given a binary operator O,
     /// it will generate intermediate results by folding O across partitions; then it
-    /// performs a final reduction by folding O accross the intermediate results. The
+    /// performs a final reduction by folding O across the intermediate results. The
     /// analysis engine knows about associativity and commutativity, and will ensure the
-    /// style of partitioning inserted into the tree is compatable with the operator.
+    /// style of partitioning inserted into the tree is compatible with the operator.
     ///
     /// For instance, say O is + (meaning it is AC), our input is {1,2,...,8}, and we
     /// use 4 partitions to calculate the aggregation. Sequentially this would look
@@ -34,7 +36,7 @@ namespace System.Linq.Parallel
     /// The final step is to aggregate O over these intermediaries, i.e.
     /// O(O(O(t1,t2),t3),t4), or ((t1+t2)+t3)+t4. This generalizes to any binary operator.
     ///
-    /// Beause some aggregations use a different input, intermediate, and output types,
+    /// Because some aggregations use a different input, intermediate, and output types,
     /// we support an even more generalized aggregation type. In this model, we have
     /// three operators, an intermediate (used for the incremental aggregations), a
     /// final (used for the final summary of intermediate results), and a result selector
@@ -74,13 +76,13 @@ namespace System.Linq.Parallel
                                                 Func<TIntermediate, TOutput> resultSelector, bool throwIfEmpty, QueryAggregationOptions options)
             : base(child)
         {
-            Contract.Assert(child != null, "child data source cannot be null");
-            Contract.Assert(intermediateReduce != null, "need an intermediate reduce function");
-            Contract.Assert(finalReduce != null, "need a final reduce function");
-            Contract.Assert(resultSelector != null, "need a result selector function");
-            Contract.Assert(options.IsValidQueryAggregationOption(), "enum out of valid range");
-            Contract.Assert((options & QueryAggregationOptions.Associative) == QueryAggregationOptions.Associative, "expected an associative operator");
-            Contract.Assert(typeof(TIntermediate) == typeof(TInput) || seedIsSpecified, "seed must be specified if TIntermediate differs from TInput");
+            Debug.Assert(child != null, "child data source cannot be null");
+            Debug.Assert(intermediateReduce != null, "need an intermediate reduce function");
+            Debug.Assert(finalReduce != null, "need a final reduce function");
+            Debug.Assert(resultSelector != null, "need a result selector function");
+            Debug.Assert(options.IsValidQueryAggregationOption(), "enum out of valid range");
+            Debug.Assert((options & QueryAggregationOptions.Associative) == QueryAggregationOptions.Associative, "expected an associative operator");
+            Debug.Assert(typeof(TIntermediate) == typeof(TInput) || seedIsSpecified, "seed must be specified if TIntermediate differs from TInput");
 
             _seed = seed;
             _seedFactory = seedFactory;
@@ -101,8 +103,8 @@ namespace System.Linq.Parallel
 
         internal TOutput Aggregate()
         {
-            Contract.Assert(_finalReduce != null);
-            Contract.Assert(_resultSelector != null);
+            Debug.Assert(_finalReduce != null);
+            Debug.Assert(_resultSelector != null);
 
             TIntermediate accumulator = default(TIntermediate);
             bool hadElements = false;
@@ -211,9 +213,10 @@ namespace System.Linq.Parallel
         // Returns an enumerable that represents the query executing sequentially.
         //
 
+        [ExcludeFromCodeCoverage]
         internal override IEnumerable<TIntermediate> AsSequentialQuery(CancellationToken token)
         {
-            Contract.Assert(false, "This method should never be called. Associative aggregation can always be parallelized.");
+            Debug.Fail("This method should never be called. Associative aggregation can always be parallelized.");
             throw new NotSupportedException();
         }
 
@@ -251,8 +254,8 @@ namespace System.Linq.Parallel
                                                               AssociativeAggregationOperator<TInput, TIntermediate, TOutput> reduceOperator, int partitionIndex,
                                                               CancellationToken cancellationToken)
             {
-                Contract.Assert(source != null);
-                Contract.Assert(reduceOperator != null);
+                Debug.Assert(source != null);
+                Debug.Assert(reduceOperator != null);
 
                 _source = source;
                 _reduceOperator = reduceOperator;
@@ -270,8 +273,8 @@ namespace System.Linq.Parallel
 
             internal override bool MoveNext(ref TIntermediate currentElement, ref int currentKey)
             {
-                Contract.Assert(_reduceOperator != null);
-                Contract.Assert(_reduceOperator._intermediateReduce != null, "expected a compiled operator");
+                Debug.Assert(_reduceOperator != null);
+                Debug.Assert(_reduceOperator._intermediateReduce != null, "expected a compiled operator");
 
                 // Only produce a single element.  Return false if MoveNext() was already called before.
                 if (_accumulated)
@@ -295,7 +298,7 @@ namespace System.Linq.Parallel
                 {
                     // If the seed is not specified, then we take the first element as the seed.
                     // Seed may be unspecified only if TInput is the same as TIntermediate.
-                    Contract.Assert(typeof(TInput) == typeof(TIntermediate));
+                    Debug.Assert(typeof(TInput) == typeof(TIntermediate));
 
                     TInput acc = default(TInput);
                     TKey accKeyUnused = default(TKey);
@@ -328,7 +331,7 @@ namespace System.Linq.Parallel
 
             protected override void Dispose(bool disposing)
             {
-                Contract.Assert(_source != null);
+                Debug.Assert(_source != null);
                 _source.Dispose();
             }
         }

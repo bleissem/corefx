@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
 using System.Reflection.Metadata.Ecma335;
@@ -26,7 +27,7 @@ namespace System.Reflection.Metadata.Tests
 
         internal static ClassLayoutRow GetTypeLayout(this MetadataReader reader, TypeDefinitionHandle typeDef)
         {
-            uint rowId = reader.ClassLayoutTable.FindRow(typeDef);
+            int rowId = reader.ClassLayoutTable.FindRow(typeDef);
             if (rowId == 0)
             {
                 return default(ClassLayoutRow);
@@ -35,12 +36,12 @@ namespace System.Reflection.Metadata.Tests
             return GetTypeLayout(reader, rowId);
         }
 
-        internal static ClassLayoutRow GetTypeLayout(this MetadataReader reader, uint rowNumber)
+        internal static ClassLayoutRow GetTypeLayout(this MetadataReader reader, int rowId)
         {
             return new ClassLayoutRow(
-                reader.ClassLayoutTable.GetPackingSize(rowNumber),
-                reader.ClassLayoutTable.GetClassSize(rowNumber),
-                reader.ClassLayoutTable.GetParent(rowNumber));
+                reader.ClassLayoutTable.GetPackingSize(rowId),
+                reader.ClassLayoutTable.GetClassSize(rowId),
+                reader.ClassLayoutTable.GetParent(rowId));
         }
     }
 }

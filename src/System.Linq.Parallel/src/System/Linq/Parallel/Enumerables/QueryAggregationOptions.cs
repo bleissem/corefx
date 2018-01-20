@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -29,7 +30,7 @@ namespace System.Linq.Parallel
     {
         // This helper is a workaround for the fact that Enum.Defined() does not work on non-public enums.
         // There is a custom attribute in System.Reflection.Metadata.Controls that would make it work
-        // but we don't want to introduce a dependency on that contract just to support two Contract.Asserts.
+        // but we don't want to introduce a dependency on that contract just to support two asserts.
         public static bool IsValidQueryAggregationOption(this QueryAggregationOptions value)
         {
             return value == QueryAggregationOptions.None

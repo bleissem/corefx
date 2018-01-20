@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,7 +9,7 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 using System.Threading;
 
 namespace System.Linq.Parallel
@@ -54,12 +55,12 @@ namespace System.Linq.Parallel
                                          Func<TLeftInput, TRightInput, TOutput> resultSelector)
             : base(leftChild)
         {
-            Contract.Assert(leftChild != null, "left child data source cannot be null");
-            Contract.Assert(rightChildSelector != null || indexedRightChildSelector != null,
+            Debug.Assert(leftChild != null, "left child data source cannot be null");
+            Debug.Assert(rightChildSelector != null || indexedRightChildSelector != null,
                             "either right child data or selector must be supplied");
-            Contract.Assert(rightChildSelector == null || indexedRightChildSelector == null,
+            Debug.Assert(rightChildSelector == null || indexedRightChildSelector == null,
                             "either indexed- or non-indexed child selector must be supplied (not both)");
-            Contract.Assert(typeof(TRightInput) == typeof(TOutput) || resultSelector != null,
+            Debug.Assert(typeof(TRightInput) == typeof(TOutput) || resultSelector != null,
                             "right input and output must be the same types, otherwise the result selector may not be null");
 
             _rightChildSelector = rightChildSelector;
@@ -140,7 +141,7 @@ namespace System.Linq.Parallel
 
         /// <summary>
         /// A helper method for WrapPartitionedStream. We use the helper to reuse a block of code twice, but with
-        /// a different order key type. (If premature merge occured, the order key type will be "int". Otherwise, 
+        /// a different order key type. (If premature merge occurred, the order key type will be "int". Otherwise, 
         /// it will be the same type as "TLeftKey" in WrapPartitionedStream.)
         /// </summary>
         private void WrapPartitionedStreamNotIndexed<TLeftKey>(
@@ -148,7 +149,7 @@ namespace System.Linq.Parallel
         {
             int partitionCount = inputStream.PartitionCount;
             var keyComparer = new PairComparer<TLeftKey, int>(inputStream.KeyComparer, Util.GetDefaultComparer<int>());
-            var outputStream = new PartitionedStream<TOutput, Pair>(partitionCount, keyComparer, OrdinalIndexState);
+            var outputStream = new PartitionedStream<TOutput, Pair<TLeftKey, int>>(partitionCount, keyComparer, OrdinalIndexState);
             for (int i = 0; i < partitionCount; i++)
             {
                 outputStream[i] = new SelectManyQueryOperatorEnumerator<TLeftKey>(inputStream[i], this, settings.CancellationState.MergedCancellationToken);
@@ -200,17 +201,17 @@ namespace System.Linq.Parallel
                 {
                     return CancellableEnumerable.Wrap(Child.AsSequentialQuery(token), token).SelectMany(_rightChildSelector, _resultSelector);
                 }
-                return (IEnumerable<TOutput>)(object)(CancellableEnumerable.Wrap(Child.AsSequentialQuery(token), token).SelectMany(_rightChildSelector));
+                return (IEnumerable<TOutput>)CancellableEnumerable.Wrap(Child.AsSequentialQuery(token), token).SelectMany(_rightChildSelector);
             }
             else
             {
-                Contract.Assert(_indexedRightChildSelector != null);
+                Debug.Assert(_indexedRightChildSelector != null);
                 if (_resultSelector != null)
                 {
                     return CancellableEnumerable.Wrap(Child.AsSequentialQuery(token), token).SelectMany(_indexedRightChildSelector, _resultSelector);
                 }
 
-                return (IEnumerable<TOutput>)(object)(CancellableEnumerable.Wrap(Child.AsSequentialQuery(token), token).SelectMany(_indexedRightChildSelector));
+                return (IEnumerable<TOutput>)CancellableEnumerable.Wrap(Child.AsSequentialQuery(token), token).SelectMany(_indexedRightChildSelector);
             }
         }
 
@@ -257,8 +258,8 @@ namespace System.Linq.Parallel
                                                               SelectManyQueryOperator<TLeftInput, TRightInput, TOutput> selectManyOperator,
                 CancellationToken cancellationToken)
             {
-                Contract.Assert(leftSource != null);
-                Contract.Assert(selectManyOperator != null);
+                Debug.Assert(leftSource != null);
+                Debug.Assert(selectManyOperator != null);
 
                 _leftSource = leftSource;
                 _selectManyOperator = selectManyOperator;
@@ -294,10 +295,10 @@ namespace System.Linq.Parallel
                         IEnumerable<TRightInput> rightChild =
                             _selectManyOperator._indexedRightChildSelector(_mutables._currentLeftElement, _mutables._currentLeftSourceIndex);
 
-                        Contract.Assert(rightChild != null);
+                        Debug.Assert(rightChild != null);
                         _currentRightSource = rightChild.GetEnumerator();
 
-                        Contract.Assert(_currentRightSource != null);
+                        Debug.Assert(_currentRightSource != null);
 
                         // If we have no result selector, we will need to access the Current element of the right
                         // data source as though it is a TOutput. Unfortunately, we know that TRightInput must
@@ -307,8 +308,8 @@ namespace System.Linq.Parallel
                         // enumerator object as an IEnumerator<TOutput> and access that later on.
                         if (_selectManyOperator._resultSelector == null)
                         {
-                            _currentRightSourceAsOutput = (IEnumerator<TOutput>)(object)_currentRightSource;
-                            Contract.Assert(_currentRightSourceAsOutput == _currentRightSource,
+                            _currentRightSourceAsOutput = (IEnumerator<TOutput>)_currentRightSource;
+                            Debug.Assert(_currentRightSourceAsOutput == _currentRightSource,
                                             "these must be equal, otherwise the surrounding logic will be broken");
                         }
                     }
@@ -327,7 +328,7 @@ namespace System.Linq.Parallel
                         {
                             // Otherwise, the right input and output types must be the same. We use the
                             // casted copy of the current right source and just return its current element.
-                            Contract.Assert(_currentRightSourceAsOutput != null);
+                            Debug.Assert(_currentRightSourceAsOutput != null);
                             currentElement = _currentRightSourceAsOutput.Current;
                         }
                         currentKey = new Pair<int, int>(_mutables._currentLeftSourceIndex, _mutables._currentRightSourceIndex);
@@ -359,7 +360,7 @@ namespace System.Linq.Parallel
         // The enumerator type responsible for executing the SelectMany logic.
         //
 
-        class SelectManyQueryOperatorEnumerator<TLeftKey> : QueryOperatorEnumerator<TOutput, Pair>
+        class SelectManyQueryOperatorEnumerator<TLeftKey> : QueryOperatorEnumerator<TOutput, Pair<TLeftKey, int>>
         {
             private readonly QueryOperatorEnumerator<TLeftInput, TLeftKey> _leftSource; // The left data source to enumerate.
             private readonly SelectManyQueryOperator<TLeftInput, TRightInput, TOutput> _selectManyOperator; // The select many operator to use.
@@ -387,8 +388,8 @@ namespace System.Linq.Parallel
                                                        SelectManyQueryOperator<TLeftInput, TRightInput, TOutput> selectManyOperator,
                                                        CancellationToken cancellationToken)
             {
-                Contract.Assert(leftSource != null);
-                Contract.Assert(selectManyOperator != null);
+                Debug.Assert(leftSource != null);
+                Debug.Assert(selectManyOperator != null);
 
                 _leftSource = leftSource;
                 _selectManyOperator = selectManyOperator;
@@ -399,7 +400,7 @@ namespace System.Linq.Parallel
             // Straightforward IEnumerator<T> methods.
             //
 
-            internal override bool MoveNext(ref TOutput currentElement, ref Pair currentKey)
+            internal override bool MoveNext(ref TOutput currentElement, ref Pair<TLeftKey, int> currentKey)
             {
                 while (true)
                 {
@@ -424,10 +425,10 @@ namespace System.Linq.Parallel
                         // Use the source selection routine to create a right child.
                         IEnumerable<TRightInput> rightChild = _selectManyOperator._rightChildSelector(_mutables._currentLeftElement);
 
-                        Contract.Assert(rightChild != null);
+                        Debug.Assert(rightChild != null);
                         _currentRightSource = rightChild.GetEnumerator();
 
-                        Contract.Assert(_currentRightSource != null);
+                        Debug.Assert(_currentRightSource != null);
 
                         // If we have no result selector, we will need to access the Current element of the right
                         // data source as though it is a TOutput. Unfortunately, we know that TRightInput must
@@ -437,8 +438,8 @@ namespace System.Linq.Parallel
                         // enumerator object as an IEnumerator<TOutput> and access that later on.
                         if (_selectManyOperator._resultSelector == null)
                         {
-                            _currentRightSourceAsOutput = (IEnumerator<TOutput>)(object)_currentRightSource;
-                            Contract.Assert(_currentRightSourceAsOutput == _currentRightSource,
+                            _currentRightSourceAsOutput = (IEnumerator<TOutput>)_currentRightSource;
+                            Debug.Assert(_currentRightSourceAsOutput == _currentRightSource,
                                             "these must be equal, otherwise the surrounding logic will be broken");
                         }
                     }
@@ -457,10 +458,10 @@ namespace System.Linq.Parallel
                         {
                             // Otherwise, the right input and output types must be the same. We use the
                             // casted copy of the current right source and just return its current element.
-                            Contract.Assert(_currentRightSourceAsOutput != null);
+                            Debug.Assert(_currentRightSourceAsOutput != null);
                             currentElement = _currentRightSourceAsOutput.Current;
                         }
-                        currentKey = new Pair(_mutables._currentLeftKey, _mutables._currentRightSourceIndex);
+                        currentKey = new Pair<TLeftKey, int>(_mutables._currentLeftKey, _mutables._currentRightSourceIndex);
 
                         return true;
                     }

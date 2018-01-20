@@ -1,5 +1,6 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -13,7 +14,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security;
@@ -53,7 +53,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
         /// <summary>An action to invoke for every accepted message.</summary>
         private readonly Action<TInput> _action;
 
-        /// <summary>Exceptions that may have occured and gone unhandled during processing.  This field is lazily initialized.</summary>
+        /// <summary>Exceptions that may have occurred and gone unhandled during processing.  This field is lazily initialized.</summary>
         private volatile List<Exception> _exceptions;
         /// <summary>Whether to stop accepting new messages.</summary>
         private volatile bool _decliningPermanently;
@@ -75,9 +75,9 @@ namespace System.Threading.Tasks.Dataflow.Internal
         internal SpscTargetCore(
             ITargetBlock<TInput> owningTarget, Action<TInput> action, ExecutionDataflowBlockOptions dataflowBlockOptions)
         {
-            Contract.Requires(owningTarget != null, "Expected non-null owningTarget");
-            Contract.Requires(action != null, "Expected non-null action");
-            Contract.Requires(dataflowBlockOptions != null, "Expected non-null dataflowBlockOptions");
+            Debug.Assert(owningTarget != null, "Expected non-null owningTarget");
+            Debug.Assert(action != null, "Expected non-null action");
+            Debug.Assert(dataflowBlockOptions != null, "Expected non-null dataflowBlockOptions");
 
             _owningTarget = owningTarget;
             _action = action;
@@ -92,7 +92,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
             // Store the offered message into the queue.
             _messages.Enqueue(messageValue);
 
-            Interlocked.MemoryBarrier(); // ensure the read of m_activeConsumer doesn't move up before the writes in Enqueue
+            Interlocked.MemoryBarrier(); // ensure the read of _activeConsumer doesn't move up before the writes in Enqueue
 
             // Make sure there's an active task available to handle processing this message.  If we find the task
             // is null, we'll try to schedule one using an interlocked operation.  If we find the task is non-null,
@@ -108,7 +108,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
             return true;
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Targets/Member[@name="OfferMessage"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Targets/Member[@name="OfferMessage"]/*' />
         internal DataflowMessageStatus OfferMessage(DataflowMessageHeader messageHeader, TInput messageValue, ISourceBlock<TInput> source, bool consumeToAccept)
         {
             // If we're not required to go back to the source to consume the offered message, try fast path.
@@ -134,13 +134,13 @@ namespace System.Threading.Tasks.Dataflow.Internal
             // If the message header is invalid, throw.
             if (!messageHeader.IsValid)
             {
-                throw new ArgumentException(Strings.Argument_InvalidMessageHeader, "messageHeader");
+                throw new ArgumentException(SR.Argument_InvalidMessageHeader, nameof(messageHeader));
             }
 
             // If the caller has requested we consume the message using ConsumeMessage, do so.
             if (consumeToAccept)
             {
-                if (source == null) throw new ArgumentException(Strings.Argument_CantConsumeFromANullSource, "consumeToAccept");
+                if (source == null) throw new ArgumentException(SR.Argument_CantConsumeFromANullSource, nameof(consumeToAccept));
                 bool consumed;
                 messageValue = source.ConsumeMessage(messageHeader, _owningTarget, out consumed);
                 if (!consumed) return DataflowMessageStatus.NotAvailable;
@@ -148,7 +148,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
 
             // See the "fast path" comments in Post
             _messages.Enqueue(messageValue);
-            Interlocked.MemoryBarrier(); // ensure the read of m_activeConsumer doesn't move up before the writes in Enqueue
+            Interlocked.MemoryBarrier(); // ensure the read of _activeConsumer doesn't move up before the writes in Enqueue
             if (_activeConsumer == null)
             {
                 ScheduleConsumerIfNecessary(isReplica: false);
@@ -173,7 +173,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
                     // We won the race.  This task is now the consumer.
 
 #if FEATURE_TRACING
-                    var etwLog = DataflowEtwProvider.Log;
+                    DataflowEtwProvider etwLog = DataflowEtwProvider.Log;
                     if (etwLog.IsEnabled())
                     {
                         etwLog.TaskLaunchedForMessageHandling(
@@ -195,7 +195,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
         [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
         private void ProcessMessagesLoopCore()
         {
-            Contract.Assert(
+            Debug.Assert(
                 _activeConsumer != null && _activeConsumer.Id == Task.CurrentId,
                 "This method should only be called when it's the active consumer.");
 
@@ -217,7 +217,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
                         messagesProcessed < maxMessagesToProcess &&
                         _messages.TryDequeue(out nextMessage))
                     {
-                        messagesProcessed++; // done before m_action invoked in case it throws exception
+                        messagesProcessed++; // done before _action invoked in case it throws exception
                         _action(nextMessage);
                     }
                 }
@@ -257,8 +257,8 @@ namespace System.Threading.Tasks.Dataflow.Internal
                         else
                         {
                             // Mark that we're exiting.
-                            var previousConsumer = Interlocked.Exchange(ref _activeConsumer, null);
-                            Contract.Assert(previousConsumer != null && previousConsumer.Id == Task.CurrentId,
+                            Task previousConsumer = Interlocked.Exchange(ref _activeConsumer, null);
+                            Debug.Assert(previousConsumer != null && previousConsumer.Id == Task.CurrentId,
                                 "The running task should have been denoted as the active task.");
 
                             // Now that we're no longer the active task, double
@@ -308,7 +308,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
         /// <param name="exception">The exception to store.</param>
         private void StoreException(Exception exception)
         {
-            // Ensure that the m_exceptions field has been initialized.
+            // Ensure that the _exceptions field has been initialized.
             // We need to synchronize the initialization and storing of
             // the exception because this method could be accessed concurrently
             // by the producer and consumer, a producer calling Fault and the 
@@ -324,7 +324,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
         /// </summary>
         private void CompleteBlockOncePossible()
         {
-            Contract.Assert(_completionReserved, "Should only invoke once completion has been reserved.");
+            Debug.Assert(_completionReserved, "Should only invoke once completion has been reserved.");
 
             // Dump any messages that might remain in the queue, which could happen if we completed due to exceptions.
             TInput dumpedMessage;
@@ -342,10 +342,10 @@ namespace System.Threading.Tasks.Dataflow.Internal
             {
                 result = CompletionSource.TrySetResult(default(VoidResult));
             }
-            Contract.Assert(result, "Expected completion task to not yet be completed");
-            // We explicitly do not set the m_activeTask to null here, as that would
+            Debug.Assert(result, "Expected completion task to not yet be completed");
+            // We explicitly do not set the _activeTask to null here, as that would
             // allow for races where a producer calling OfferMessage could end up
-            // seeing m_activeTask as null and queueing a new consumer task even
+            // seeing _activeTask as null and queueing a new consumer task even
             // though the block has completed.
 
 #if FEATURE_TRACING
@@ -357,7 +357,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
 #endif
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Completion"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Completion"]/*' />
         internal Task Completion { get { return CompletionSource.Task; } }
 
         /// <summary>Gets the lazily-initialized completion source.</summary>
@@ -394,9 +394,7 @@ namespace System.Threading.Tasks.Dataflow.Internal
             /// <summary>Initializes the debugging helper.</summary>
             /// <param name="target">The target being viewed.</param>
             internal DebuggingInformation(SpscTargetCore<TInput> target) { _target = target; }
-
-            /// <summary>Gets the number of messages waiting to be processed.</summary>
-            internal int InputCount { get { return _target.InputCount; } }
+            
             /// <summary>Gets the messages waiting to be processed.</summary>
             internal IEnumerable<TInput> InputQueue { get { return _target._messages.ToList(); } }
 

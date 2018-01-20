@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 /*============================================================
 **
@@ -13,45 +14,34 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security;
 
 namespace Microsoft.Win32.SafeHandles
 {
-    [System.Security.SecurityCriticalAttribute]
-    public sealed class SafeProcessHandle : SafeHandle
+    public sealed partial class SafeProcessHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
-        internal static SafeProcessHandle InvalidHandle = new SafeProcessHandle(IntPtr.Zero);
+        internal static readonly SafeProcessHandle InvalidHandle = new SafeProcessHandle();
 
-        internal SafeProcessHandle() : base(IntPtr.Zero, true) { }
-
-        internal SafeProcessHandle(IntPtr handle)
-            : base(IntPtr.Zero, true)
+        internal SafeProcessHandle()
+            : this(new IntPtr(DefaultInvalidHandleValue))
         {
-            SetHandle(handle);
         }
 
-        public SafeProcessHandle(IntPtr handle, bool ownsHandle)
-            : base(IntPtr.Zero, ownsHandle)
+        internal SafeProcessHandle(IntPtr handle)
+            : this(handle, true)
         {
-            SetHandle(handle);
+        }
+
+        public SafeProcessHandle(IntPtr existingHandle, bool ownsHandle)
+            : base(ownsHandle)
+        {
+            SetHandle(existingHandle);
         }
 
         internal void InitialSetHandle(IntPtr h)
         {
             Debug.Assert(IsInvalid, "Safe handle should only be set once");
             base.handle = h;
-        }
-
-        public override bool IsInvalid
-        {
-            [System.Security.SecurityCritical]
-            get
-            { return handle == new IntPtr(0) || handle == new IntPtr(-1); }
-        }
-
-        [System.Security.SecurityCritical]
-        override protected bool ReleaseHandle()
-        {
-            return Interop.mincore.CloseHandle(handle);
         }
     }
 }

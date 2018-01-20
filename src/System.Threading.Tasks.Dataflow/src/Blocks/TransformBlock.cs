@@ -1,5 +1,6 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -31,6 +32,16 @@ namespace System.Threading.Tasks.Dataflow
         private readonly ReorderingBuffer<TOutput> _reorderingBuffer;
         /// <summary>The source side.</summary>
         private readonly SourceCore<TOutput> _source;
+
+        /// <summary>Gets the object to use for writing to the source when multiple threads may be involved.</summary>
+        /// <remarks>
+        /// If a reordering buffer is used, it is safe for multiple threads to write to concurrently and handles safe 
+        /// access to the source. If there's no reordering buffer because no parallelism is used, then only one thread at
+        /// a time will try to access the source, anyway.  But, if there's no reordering buffer and parallelism is being
+        /// employed, then multiple threads may try to access the source concurrently, in which case we need to manually
+        /// synchronize all such access, and this lock is used for that purpose.
+        /// </remarks>
+        private object ParallelSourceLock { get { return _source; } }
 
         /// <summary>Initializes the <see cref="TransformBlock{TInput,TOutput}"/> with the specified <see cref="System.Func{TInput,TOutput}"/>.</summary>
         /// <param name="transform">The function to invoke with each data element received.</param>
@@ -84,9 +95,9 @@ namespace System.Threading.Tasks.Dataflow
         private TransformBlock(Func<TInput, TOutput> transformSync, Func<TInput, Task<TOutput>> transformAsync, ExecutionDataflowBlockOptions dataflowBlockOptions)
         {
             if (transformSync == null && transformAsync == null) throw new ArgumentNullException("transform");
-            if (dataflowBlockOptions == null) throw new ArgumentNullException("dataflowBlockOptions");
+            if (dataflowBlockOptions == null) throw new ArgumentNullException(nameof(dataflowBlockOptions));
 
-            Contract.Requires(transformSync == null ^ transformAsync == null, "Exactly one of transformSync and transformAsync must be null.");
+            Debug.Assert(transformSync == null ^ transformAsync == null, "Exactly one of transformSync and transformAsync must be null.");
             Contract.EndContractBlock();
 
             // Ensure we have options that can't be changed by the caller
@@ -102,8 +113,9 @@ namespace System.Threading.Tasks.Dataflow
                 owningSource => ((TransformBlock<TInput, TOutput>)owningSource)._target.Complete(exception: null, dropPendingMessages: true),
                 onItemsRemoved);
 
-            // If parallelism is employed, we will need to support reordering messages that complete out-of-order
-            if (dataflowBlockOptions.SupportsParallelExecution)
+            // If parallelism is employed, we will need to support reordering messages that complete out-of-order.
+            // However, a developer can override this with EnsureOrdered == false.
+            if (dataflowBlockOptions.SupportsParallelExecution && dataflowBlockOptions.EnsureOrdered)
             {
                 _reorderingBuffer = new ReorderingBuffer<TOutput>(this, (owningSource, message) => ((TransformBlock<TInput, TOutput>)owningSource)._source.AddMessage(message));
             }
@@ -117,7 +129,7 @@ namespace System.Threading.Tasks.Dataflow
             }
             else // async
             {
-                Contract.Assert(transformAsync != null, "Incorrect delegate type.");
+                Debug.Assert(transformAsync != null, "Incorrect delegate type.");
                 _target = new TargetCore<TInput>(this,
                     messageWithId => ProcessMessageWithTask(transformAsync, messageWithId),
                     _reorderingBuffer, dataflowBlockOptions, TargetCoreOptions.UsesAsyncCompletion);
@@ -128,45 +140,29 @@ namespace System.Threading.Tasks.Dataflow
             // As the target has completed, and as the target synchronously pushes work
             // through the reordering buffer when async processing completes, 
             // we know for certain that no more messages will need to be sent to the source.
-#if PRENET45
-            m_target.Completion.ContinueWith(completed =>
-            {
-                if (completed.IsFaulted) m_source.AddAndUnwrapAggregateException(completed.Exception);
-                m_source.Complete();
-            }, CancellationToken.None, Common.GetContinuationOptions(), TaskScheduler.Default);
-#else
             _target.Completion.ContinueWith((completed, state) =>
             {
                 var sourceCore = (SourceCore<TOutput>)state;
                 if (completed.IsFaulted) sourceCore.AddAndUnwrapAggregateException(completed.Exception);
                 sourceCore.Complete();
             }, _source, CancellationToken.None, Common.GetContinuationOptions(), TaskScheduler.Default);
-#endif
 
             // It is possible that the source half may fault on its own, e.g. due to a task scheduler exception.
             // In those cases we need to fault the target half to drop its buffered messages and to release its 
             // reservations. This should not create an infinite loop, because all our implementations are designed
             // to handle multiple completion requests and to carry over only one.
-#if PRENET45
-            m_source.Completion.ContinueWith(completed =>
-            {
-                Contract.Assert(completed.IsFaulted, "The source must be faulted in order to trigger a target completion.");
-                (this as IDataflowBlock).Fault(completed.Exception);
-            }, CancellationToken.None, Common.GetContinuationOptions() | TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-#else
             _source.Completion.ContinueWith((completed, state) =>
             {
                 var thisBlock = ((TransformBlock<TInput, TOutput>)state) as IDataflowBlock;
-                Contract.Assert(completed.IsFaulted, "The source must be faulted in order to trigger a target completion.");
+                Debug.Assert(completed.IsFaulted, "The source must be faulted in order to trigger a target completion.");
                 thisBlock.Fault(completed.Exception);
             }, this, CancellationToken.None, Common.GetContinuationOptions() | TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-#endif
 
             // Handle async cancellation requests by declining on the target
             Common.WireCancellationToComplete(
                 dataflowBlockOptions.CancellationToken, Completion, state => ((TargetCore<TInput>)state).Complete(exception: null, dropPendingMessages: true), _target);
 #if FEATURE_TRACING
-            var etwLog = DataflowEtwProvider.Log;
+            DataflowEtwProvider etwLog = DataflowEtwProvider.Log;
             if (etwLog.IsEnabled())
             {
                 etwLog.DataflowBlockCreated(this, dataflowBlockOptions);
@@ -198,7 +194,7 @@ namespace System.Threading.Tasks.Dataflow
                 // count to reflect that we're done with this input item.
                 if (!itemIsValid) _target.ChangeBoundingCount(-1);
 
-                // If there's no reordering buffer (because we're running sequentially),
+                // If there's no reordering buffer (because we're running sequentially or ordering was disabled),
                 // simply pass the output message through. Otherwise, there's a reordering buffer, 
                 // so add to it instead (if a reordering buffer is used, we always need
                 // to output the message to it, even if the operation failed and outputMessage
@@ -207,7 +203,20 @@ namespace System.Threading.Tasks.Dataflow
                 // null messages accordingly.)
                 if (_reorderingBuffer == null)
                 {
-                    if (itemIsValid) _source.AddMessage(outputItem);
+                    if (itemIsValid)
+                    {
+                        if (_target.DataflowBlockOptions.MaxDegreeOfParallelism == 1)
+                        {
+                            _source.AddMessage(outputItem);
+                        }
+                        else
+                        {
+                            lock (ParallelSourceLock)
+                            {
+                                _source.AddMessage(outputItem);
+                            }
+                        }
+                    }
                 }
                 else _reorderingBuffer.AddItem(messageWithId.Value, outputItem, itemIsValid);
             }
@@ -219,7 +228,7 @@ namespace System.Threading.Tasks.Dataflow
         [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
         private void ProcessMessageWithTask(Func<TInput, Task<TOutput>> transform, KeyValuePair<TInput, long> messageWithId)
         {
-            Contract.Requires(transform != null, "Function to invoke is required.");
+            Debug.Assert(transform != null, "Function to invoke is required.");
 
             // Run the transform function to get the task that represents the operation's completion
             Task<TOutput> task = null;
@@ -251,19 +260,12 @@ namespace System.Threading.Tasks.Dataflow
             }
 
             // Otherwise, join with the asynchronous operation when it completes.
-#if PRENET45
-            task.ContinueWith(completed =>
-            {
-                this.AsyncCompleteProcessMessageWithTask(completed, messageWithId);
-            }, CancellationToken.None, Common.GetContinuationOptions(TaskContinuationOptions.ExecuteSynchronously), TaskScheduler.Default);
-#else
             task.ContinueWith((completed, state) =>
             {
                 var tuple = (Tuple<TransformBlock<TInput, TOutput>, KeyValuePair<TInput, long>>)state;
                 tuple.Item1.AsyncCompleteProcessMessageWithTask(completed, tuple.Item2);
             }, Tuple.Create(this, messageWithId), CancellationToken.None,
             Common.GetContinuationOptions(TaskContinuationOptions.ExecuteSynchronously), TaskScheduler.Default);
-#endif
         }
 
         /// <summary>Completes the processing of an asynchronous message.</summary>
@@ -271,8 +273,8 @@ namespace System.Threading.Tasks.Dataflow
         /// <param name="messageWithId">The originating message</param>
         private void AsyncCompleteProcessMessageWithTask(Task<TOutput> completed, KeyValuePair<TInput, long> messageWithId)
         {
-            Contract.Requires(completed != null, "Completed task is required.");
-            Contract.Requires(completed.IsCompleted, "Task must be completed to be here.");
+            Debug.Assert(completed != null, "Completed task is required.");
+            Debug.Assert(completed.IsCompleted, "Task must be completed to be here.");
 
             bool isBounded = _target.IsBounded;
             bool gotOutputItem = false;
@@ -302,11 +304,24 @@ namespace System.Threading.Tasks.Dataflow
             // appropriately incremented before it's decremented.
             if (!gotOutputItem && isBounded) _target.ChangeBoundingCount(-1);
 
-            // If there's no reordering buffer (because we're running sequentially),
+            // If there's no reordering buffer (because we're running sequentially or ordering is disabled),
             // and we got a message, simply pass the output message through.
             if (_reorderingBuffer == null)
             {
-                if (gotOutputItem) _source.AddMessage(outputItem);
+                if (gotOutputItem)
+                {
+                    if (_target.DataflowBlockOptions.MaxDegreeOfParallelism == 1)
+                    {
+                        _source.AddMessage(outputItem);
+                    }
+                    else
+                    {
+                        lock (ParallelSourceLock)
+                        {
+                            _source.AddMessage(outputItem);
+                        }
+                    }
+                }
             }
             // Otherwise, there's a reordering buffer, so add to it instead.  
             // Even if something goes wrong, we need to update the 
@@ -317,61 +332,61 @@ namespace System.Threading.Tasks.Dataflow
             _target.SignalOneAsyncMessageCompleted();
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Complete"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Complete"]/*' />
         public void Complete() { _target.Complete(exception: null, dropPendingMessages: false); }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Fault"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Fault"]/*' />
         void IDataflowBlock.Fault(Exception exception)
         {
-            if (exception == null) throw new ArgumentNullException("exception");
+            if (exception == null) throw new ArgumentNullException(nameof(exception));
             Contract.EndContractBlock();
 
             _target.Complete(exception, dropPendingMessages: true);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="LinkTo"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="LinkTo"]/*' />
         public IDisposable LinkTo(ITargetBlock<TOutput> target, DataflowLinkOptions linkOptions)
         {
             return _source.LinkTo(target, linkOptions);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceive"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceive"]/*' />
         public Boolean TryReceive(Predicate<TOutput> filter, out TOutput item)
         {
             return _source.TryReceive(filter, out item);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceiveAll"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="TryReceiveAll"]/*' />
         public bool TryReceiveAll(out IList<TOutput> items) { return _source.TryReceiveAll(out items); }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Completion"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="Completion"]/*' />
         public Task Completion { get { return _source.Completion; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Targets/Member[@name="InputCount"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Targets/Member[@name="InputCount"]/*' />
         public int InputCount { get { return _target.InputCount; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="OutputCount"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="OutputCount"]/*' />
         public int OutputCount { get { return _source.OutputCount; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Targets/Member[@name="OfferMessage"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Targets/Member[@name="OfferMessage"]/*' />
         DataflowMessageStatus ITargetBlock<TInput>.OfferMessage(DataflowMessageHeader messageHeader, TInput messageValue, ISourceBlock<TInput> source, Boolean consumeToAccept)
         {
             return _target.OfferMessage(messageHeader, messageValue, source, consumeToAccept);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ConsumeMessage"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ConsumeMessage"]/*' />
         TOutput ISourceBlock<TOutput>.ConsumeMessage(DataflowMessageHeader messageHeader, ITargetBlock<TOutput> target, out Boolean messageConsumed)
         {
             return _source.ConsumeMessage(messageHeader, target, out messageConsumed);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReserveMessage"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReserveMessage"]/*' />
         bool ISourceBlock<TOutput>.ReserveMessage(DataflowMessageHeader messageHeader, ITargetBlock<TOutput> target)
         {
             return _source.ReserveMessage(messageHeader, target);
         }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReleaseReservation"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Sources/Member[@name="ReleaseReservation"]/*' />
         void ISourceBlock<TOutput>.ReleaseReservation(DataflowMessageHeader messageHeader, ITargetBlock<TOutput> target)
         {
             _source.ReleaseReservation(messageHeader, target);
@@ -382,7 +397,7 @@ namespace System.Threading.Tasks.Dataflow
         /// <summary>Gets the number of messages waiting to be processed.  This must only be used from the debugger as it avoids taking necessary locks.</summary>
         private int OutputCountForDebugger { get { return _source.GetDebuggingInformation().OutputCount; } }
 
-        /// <include file='XmlDocs\CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="ToString"]/*' />
+        /// <include file='XmlDocs/CommonXmlDocComments.xml' path='CommonXmlDocComments/Blocks/Member[@name="ToString"]/*' />
         public override string ToString() { return Common.GetNameForDebugger(this, _source.DataflowBlockOptions); }
 
         /// <summary>The data to display in the debugger display attribute.</summary>
@@ -414,7 +429,7 @@ namespace System.Threading.Tasks.Dataflow
             /// <param name="transformBlock">The transform being viewed.</param>
             public DebugView(TransformBlock<TInput, TOutput> transformBlock)
             {
-                Contract.Requires(transformBlock != null, "Need a block with which to construct the debug view.");
+                Debug.Assert(transformBlock != null, "Need a block with which to construct the debug view.");
                 _transformBlock = transformBlock;
                 _targetDebuggingInformation = transformBlock._target.GetDebuggingInformation();
                 _sourceDebuggingInformation = transformBlock._source.GetDebuggingInformation();
@@ -427,7 +442,7 @@ namespace System.Threading.Tasks.Dataflow
             /// <summary>Gets the messages waiting to be received.</summary>
             public IEnumerable<TOutput> OutputQueue { get { return _sourceDebuggingInformation.OutputQueue; } }
 
-            /// <summary>Gets the number of oustanding input operations.</summary>
+            /// <summary>Gets the number of outstanding input operations.</summary>
             public Int32 CurrentDegreeOfParallelism { get { return _targetDebuggingInformation.CurrentDegreeOfParallelism; } }
             /// <summary>Gets the task being used for output processing.</summary>
             public Task TaskForOutputProcessing { get { return _sourceDebuggingInformation.TaskForOutputProcessing; } }

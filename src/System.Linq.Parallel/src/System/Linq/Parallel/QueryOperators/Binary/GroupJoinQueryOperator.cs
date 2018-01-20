@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,7 +9,7 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 using System.Threading;
 
 namespace System.Linq.Parallel
@@ -41,10 +42,10 @@ namespace System.Linq.Parallel
                                         IEqualityComparer<TKey> keyComparer)
             : base(left, right)
         {
-            Contract.Assert(left != null && right != null, "child data sources cannot be null");
-            Contract.Assert(leftKeySelector != null, "left key selector must not be null");
-            Contract.Assert(rightKeySelector != null, "right key selector must not be null");
-            Contract.Assert(resultSelector != null, "need a result selector function");
+            Debug.Assert(left != null && right != null, "child data sources cannot be null");
+            Debug.Assert(leftKeySelector != null, "left key selector must not be null");
+            Debug.Assert(rightKeySelector != null, "right key selector must not be null");
+            Debug.Assert(resultSelector != null, "need a result selector function");
 
             _leftKeySelector = leftKeySelector;
             _rightKeySelector = rightKeySelector;
@@ -72,7 +73,7 @@ namespace System.Linq.Parallel
             PartitionedStream<TLeftInput, TLeftKey> leftStream, PartitionedStream<TRightInput, TRightKey> rightStream,
             IPartitionedStreamRecipient<TOutput> outputRecipient, bool preferStriping, QuerySettings settings)
         {
-            Contract.Assert(rightStream.PartitionCount == leftStream.PartitionCount);
+            Debug.Assert(rightStream.PartitionCount == leftStream.PartitionCount);
             int partitionCount = leftStream.PartitionCount;
 
             if (LeftChild.OutputOrdered)
@@ -95,10 +96,10 @@ namespace System.Linq.Parallel
         //
 
         private void WrapPartitionedStreamHelper<TLeftKey, TRightKey>(
-            PartitionedStream<Pair, TLeftKey> leftHashStream, PartitionedStream<TRightInput, TRightKey> rightPartitionedStream,
+            PartitionedStream<Pair<TLeftInput,TKey>, TLeftKey> leftHashStream, PartitionedStream<TRightInput, TRightKey> rightPartitionedStream,
             IPartitionedStreamRecipient<TOutput> outputRecipient, int partitionCount, CancellationToken cancellationToken)
         {
-            PartitionedStream<Pair, int> rightHashStream = ExchangeUtilities.HashRepartition(
+            PartitionedStream<Pair<TRightInput,TKey>, int> rightHashStream = ExchangeUtilities.HashRepartition(
                 rightPartitionedStream, _rightKeySelector, _keyComparer, null, cancellationToken);
 
             PartitionedStream<TOutput, TLeftKey> outputStream = new PartitionedStream<TOutput, TLeftKey>(

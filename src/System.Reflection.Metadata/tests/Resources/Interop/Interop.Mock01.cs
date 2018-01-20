@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System;
 using System.Runtime.CompilerServices;
@@ -138,7 +139,6 @@ namespace MockInterop01
     public delegate void EventDele02(InteropEnum p);
     public delegate void EventDele03(ComplexStruct p);
 
-    [ComVisible(false)]
     // [TypeIdentifier("71B8C65D-7748-447A-B786-64682CBEF136", "MockInterop01.InteropDeleWithStructArray")]
     [UnmanagedFunctionPointerAttribute(CallingConvention.StdCall, BestFitMapping = false, CharSet = CharSet.Auto)]
     public delegate void InteropDeleWithStructArray([In, Out, ComAliasName("MockInterop01.UnionStruct"), MarshalAs(UnmanagedType.LPArray)] UnionStruct[] p);

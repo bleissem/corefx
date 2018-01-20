@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -8,7 +9,7 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 
 namespace System.Linq.Parallel
 {
@@ -64,9 +65,9 @@ namespace System.Linq.Parallel
 
         internal void Enqueue(T item)
         {
-            Contract.Assert(_queue != null);
+            Debug.Assert(_queue != null);
 #if DEBUG
-            Contract.Assert(!_done, "trying to enqueue into the queue after production is done");
+            Debug.Assert(!_done, "trying to enqueue into the queue after production is done");
 #endif
 
             _queue.Enqueue(item);
@@ -86,9 +87,9 @@ namespace System.Linq.Parallel
 
         internal T Dequeue()
         {
-            Contract.Assert(_queue != null);
+            Debug.Assert(_queue != null);
 #if DEBUG
-            Contract.Assert(_done, "trying to dequeue before production is done -- this is not safe");
+            Debug.Assert(_done, "trying to dequeue before production is done -- this is not safe");
 #endif
             return _queue.Dequeue();
         }
@@ -112,9 +113,9 @@ namespace System.Linq.Parallel
 
         internal void CopyTo(T[] array, int arrayIndex)
         {
-            Contract.Assert(array != null);
+            Debug.Assert(array != null);
 #if DEBUG
-            Contract.Assert(_done, "Can only copy from the channel after it's done being added to");
+            Debug.Assert(_done, "Can only copy from the channel after it's done being added to");
 #endif
             _queue.CopyTo(array, arrayIndex);
         }
@@ -127,7 +128,7 @@ namespace System.Linq.Parallel
         {
             get
             {
-                Contract.Assert(_queue != null);
+                Debug.Assert(_queue != null);
                 return _queue.Count;
             }
         }

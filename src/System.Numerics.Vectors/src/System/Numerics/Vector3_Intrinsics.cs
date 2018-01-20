@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Runtime.CompilerServices;
 
@@ -78,11 +79,18 @@ namespace System.Numerics
         public void CopyTo(Single[] array, int index)
         {
             if (array == null)
-                throw new ArgumentNullException("values");
+            {
+                // Match the JIT's exception type here. For perf, a NullReference is thrown instead of an ArgumentNull.
+                throw new NullReferenceException(SR.Arg_NullArgumentNullRef);
+            }
             if (index < 0 || index >= array.Length)
-                throw new ArgumentOutOfRangeException(SR.GetString("Arg_ArgumentOutOfRangeException", index));
+            {
+                throw new ArgumentOutOfRangeException(nameof(index), SR.Format(SR.Arg_ArgumentOutOfRangeException, index));
+            }
             if ((array.Length - index) < 3)
-                throw new ArgumentException(SR.GetString("Arg_ElementsInSourceIsGreaterThanDestination", index));
+            {
+                throw new ArgumentException(SR.Format(SR.Arg_ElementsInSourceIsGreaterThanDestination, index));
+            }
             array[index] = X;
             array[index + 1] = Y;
             array[index + 2] = Z;
@@ -158,7 +166,7 @@ namespace System.Numerics
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector3 Abs(Vector3 value)
         {
-            return new Vector3(Math.Abs(value.X), Math.Abs(value.Y), Math.Abs(value.Z));
+            return new Vector3(MathF.Abs(value.X), MathF.Abs(value.Y), MathF.Abs(value.Z));
         }
 
         /// <summary>
@@ -170,7 +178,7 @@ namespace System.Numerics
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector3 SquareRoot(Vector3 value)
         {
-            return new Vector3((Single)Math.Sqrt(value.X), (Single)Math.Sqrt(value.Y), (Single)Math.Sqrt(value.Z));
+            return new Vector3(MathF.Sqrt(value.X), MathF.Sqrt(value.Y), MathF.Sqrt(value.Z));
         }
         #endregion Public Static Methods
 

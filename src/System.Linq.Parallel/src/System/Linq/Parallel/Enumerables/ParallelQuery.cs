@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 // =+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 //
@@ -11,7 +12,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq.Parallel;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace System.Linq
 {
@@ -45,9 +47,10 @@ namespace System.Linq
         // is thrown.
         //
 
+        [ExcludeFromCodeCoverage]
         internal virtual ParallelQuery<TCastTo> Cast<TCastTo>()
         {
-            Contract.Assert(false, "The derived class must override this method.");
+            Debug.Fail("The derived class must override this method.");
             throw new NotSupportedException();
         }
 
@@ -57,9 +60,10 @@ namespace System.Linq
         // the results.
         //
 
+        [ExcludeFromCodeCoverage]
         internal virtual ParallelQuery<TCastTo> OfType<TCastTo>()
         {
-            Contract.Assert(false, "The derived class must override this method.");
+            Debug.Fail("The derived class must override this method.");
             throw new NotSupportedException();
         }
 
@@ -69,9 +73,10 @@ namespace System.Linq
         // IEnumerable<T>.
         //
 
+        [ExcludeFromCodeCoverage]
         internal virtual IEnumerator GetEnumeratorUntyped()
         {
-            Contract.Assert(false, "The derived class must override this method.");
+            Debug.Fail("The derived class must override this method.");
             throw new NotSupportedException();
         }
 
@@ -120,7 +125,7 @@ namespace System.Linq
         /// <returns>An enumerator that iterates through the sequence.</returns>
         public virtual IEnumerator<TSource> GetEnumerator()
         {
-            Contract.Assert(false, "The derived class must override this method.");
+            Debug.Fail("The derived class must override this method.");
             throw new NotSupportedException();
         }
     }

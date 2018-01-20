@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -598,7 +599,7 @@ namespace System.Numerics.Tests
         {
             Quaternion a = new Quaternion(1.0f, 2.0f, 3.0f, 4.0f);
 
-            int expected = a.X.GetHashCode() + a.Y.GetHashCode() + a.Z.GetHashCode() + a.W.GetHashCode();
+            int expected = unchecked(a.X.GetHashCode() + a.Y.GetHashCode() + a.Z.GetHashCode() + a.W.GetHashCode());
             int actual = a.GetHashCode();
             Assert.Equal(expected, actual);
         }
@@ -969,12 +970,17 @@ namespace System.Numerics.Tests
         [Fact]
         public unsafe void QuaternionFieldOffsetTest()
         {
-            Quaternion* ptr = (Quaternion*)0;
+            Quaternion quat = new Quaternion();
 
-            Assert.Equal(new IntPtr(0), new IntPtr(&ptr->X));
-            Assert.Equal(new IntPtr(4), new IntPtr(&ptr->Y));
-            Assert.Equal(new IntPtr(8), new IntPtr(&ptr->Z));
-            Assert.Equal(new IntPtr(12), new IntPtr(&ptr->W));
+            float* basePtr = &quat.X; // Take address of first element
+            Quaternion* quatPtr = &quat; // Take address of whole Quaternion
+
+            Assert.Equal(new IntPtr(basePtr), new IntPtr(quatPtr));
+
+            Assert.Equal(new IntPtr(basePtr + 0), new IntPtr(&quat.X));
+            Assert.Equal(new IntPtr(basePtr + 1), new IntPtr(&quat.Y));
+            Assert.Equal(new IntPtr(basePtr + 2), new IntPtr(&quat.Z));
+            Assert.Equal(new IntPtr(basePtr + 3), new IntPtr(&quat.W));
         }
     }
 }
